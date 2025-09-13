@@ -142,7 +142,7 @@ Return a JSON array of bug objects. Each bug should have:
 DO NOT REPORT:
 1. Issues about dropdown menues hiding content below them when opened - that is not a bug, it's a feature.
 2. Issues about contrast or color usage.
-3. Non-critical spacing and layout issues. Only report these if they result in acutal usability issues.
+3. Visually unappealing spacing and layout issues. Only report these if they result in acutal usability issues.
 
 IMPORTANT RULES:
 - Only report REAL, VISIBLE issues in the screenshot

@@ -59,13 +59,25 @@ class ActionRecorder:
             description=desc
         )
     
-    def record_scroll(self, direction: str = "down", amount: str = "", description: str = ""):
-        """Record a scroll action"""
-        desc = description or f"Scroll {direction}" + (f" by {amount}" if amount else "")
+    def record_scroll(self, from_position: int, to_position: int, description: str = ""):
+        """Record a scroll action with specific positions"""
+        direction = "down" if to_position > from_position else "up" if to_position < from_position else "none"
+        amount = abs(to_position - from_position)
+        desc = description or f"Scroll {direction} from {from_position}px to {to_position}px"
         self._add_step(
             action="scroll",
-            target=direction,
-            value=amount,
+            target=f"{from_position}px -> {to_position}px",
+            value=f"{amount}px {direction}",
+            description=desc
+        )
+    
+    def record_scroll_setup(self, viewport_height: int, is_scrollable: bool, description: str = ""):
+        """Record scroll manager initialization"""
+        desc = description or f"Setup scroll manager: viewport {viewport_height}px, {'scrollable' if is_scrollable else 'fits in viewport'}"
+        self._add_step(
+            action="scroll_setup",
+            target=f"{viewport_height}px viewport",
+            value="scrollable" if is_scrollable else "single_screen",
             description=desc
         )
     

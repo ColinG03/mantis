@@ -26,7 +26,7 @@ class EvidenceCollector:
         
     async def capture_bug_screenshot(self, bug_id: str, viewport: str) -> Optional[str]:
         """
-        Capture a screenshot for a specific bug.
+        Capture a screenshot for a specific bug (viewport-only).
         
         Args:
             bug_id: Unique identifier for the bug
@@ -42,7 +42,7 @@ class EvidenceCollector:
             
             await self.page.screenshot(
                 path=filepath,
-                full_page=True,
+                full_page=False,  # Changed to capture only viewport
                 type='png'
             )
             
@@ -54,7 +54,7 @@ class EvidenceCollector:
     
     async def capture_viewport_screenshot(self, viewport: str) -> Optional[str]:
         """
-        Capture a full viewport screenshot for general documentation.
+        Capture a viewport-only screenshot for general documentation.
         
         Args:
             viewport: Current viewport (e.g., "1280x800")
@@ -69,7 +69,7 @@ class EvidenceCollector:
             
             await self.page.screenshot(
                 path=filepath,
-                full_page=True,
+                full_page=False,  # Changed to capture only viewport
                 type='png'
             )
             
@@ -77,6 +77,34 @@ class EvidenceCollector:
             
         except Exception as e:
             print(f"Failed to capture viewport screenshot: {str(e)}")
+            return None
+    
+    async def capture_scroll_screenshot(self, scroll_position: int, viewport: str) -> Optional[str]:
+        """
+        Capture a viewport-only screenshot at a specific scroll position.
+        
+        Args:
+            scroll_position: Current scroll position in pixels
+            viewport: Current viewport (e.g., "1280x800")
+            
+        Returns:
+            Path to the screenshot file, or None if capture failed
+        """
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"viewport_{viewport}_scroll_{scroll_position}_{timestamp}.png"
+            filepath = os.path.join(self.screenshots_dir, filename)
+            
+            await self.page.screenshot(
+                path=filepath,
+                full_page=False,  # Viewport-only screenshot
+                type='png'
+            )
+            
+            return filepath
+            
+        except Exception as e:
+            print(f"Failed to capture scroll screenshot at position {scroll_position}: {str(e)}")
             return None
     
     async def capture_element_screenshot(self, selector: str, bug_id: str) -> Optional[str]:
