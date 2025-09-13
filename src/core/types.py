@@ -5,10 +5,12 @@ from typing import Literal, List, Dict, Optional
 Severity = Literal["low", "medium", "high", "critical"]
 BugType  = Literal["UI", "Accessibility", "Logic"]
 
+#LAYER BETWEEN THE ORCHESTRATOR AND THE INSPECTOR: pass a url to inspector, inspector returns a PageResult
+
 @dataclass
 class Evidence:
     screenshot_path: Optional[str] = None
-    console_log_path: Optional[str] = None
+    console_log: Optional[str] = None
     wcag: Optional[List[str]] = None
     viewport: Optional[str] = None  # "1280x800"
 
