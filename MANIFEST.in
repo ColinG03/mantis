@@ -1,0 +1,29 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include setup.py
+
+# Include static files for dashboard
+recursive-include src/dashboard/static *
+recursive-include src/dashboard/templates *
+
+# Include any additional data files
+include src/inspector/README.md
+
+# Exclude development and test files
+exclude *.py[co]
+exclude .gitignore
+exclude .git*
+exclude test_*.py
+exclude debug_*.py
+exclude debug_*.html
+exclude *_test.html
+exclude crawl_report.json
+exclude mantis_run.py
+
+# Exclude build directories
+global-exclude __pycache__
+global-exclude *.py[co]
+prune build
+prune dist
+prune *.egg-info
