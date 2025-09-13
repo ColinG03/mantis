@@ -54,22 +54,69 @@ class PageSetup:
     async def _setup_logging(self):
         """Set up console and error event listeners"""
         
+        # Initialize console log storage on the page
+        await self.page.evaluate("""
+        () => {
+            window.__mantis_console_logs = [];
+            
+            // Override console methods to capture logs
+            const originalConsole = { ...console };
+            
+            ['log', 'info', 'warn', 'error', 'debug'].forEach(level => {
+                console[level] = function(...args) {
+                    // Store the log entry
+                    window.__mantis_console_logs.push({
+                        level: level,
+                        message: args.map(arg => 
+                            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+                        ).join(' '),
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    // Call original console method
+                    originalConsole[level].apply(console, args);
+                };
+            });
+        }
+        """)
+        
         def handle_console(msg):
-            # Store console messages for later analysis
-            # You might want to filter by log level (error, warn, etc.)
+            # Additional handling if needed - logs are already captured via JavaScript override
             pass
         
         def handle_page_error(error):
-            # Store JavaScript errors
-            pass
+            # Store JavaScript errors as console logs
+            msg = str(error).replace("'", "\\'")
+            js = f"""
+                (() => {{
+                    window.__mantis_console_logs = window.__mantis_console_logs || [];
+                    window.__mantis_console_logs.push({{
+                    level: 'error',
+                    message: 'JavaScript Error: {msg}',
+                    timestamp: new Date().toISOString()
+                }});
+                }})();
+            """
+            self.page.evaluate(js)
         
         def handle_request_failed(request):
-            # Store failed network requests
-            pass
-        
-        self.page.on("console", handle_console)
-        self.page.on("pageerror", handle_page_error)
-        self.page.on("requestfailed", handle_request_failed)
+            # Store failed network requests as console logs
+            msg = f"Network Error: Failed to load {request.url}"
+            js = f"""
+            (() => {{
+                window.__mantis_console_logs = window.__mantis_console_logs || [];
+                window.__mantis_console_logs.push({{
+                    level: 'error',
+                    message: '{msg}',
+                    timestamp: new Date().toISOString()
+                }});
+            }})();
+            """
+            self.page.evaluate(js)
+            
+            self.page.on("console", handle_console)
+            self.page.on("pageerror", handle_page_error)
+            self.page.on("requestfailed", handle_request_failed)
     
     async def _wait_for_page_ready(self):
         """
