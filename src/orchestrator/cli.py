@@ -70,9 +70,9 @@ Examples:
         )
         run_parser.add_argument(
             '--scan-type',
-            choices=['all', 'accessibility', 'ui', 'interactive', 'performance'],
+            choices=['all', 'accessibility', 'ui', 'performance'],
             default='all',
-            help='Type of scan to perform (default: all)'
+            help='Type of scan to perform: all (comprehensive), accessibility (WCAG compliance), ui (visual + interactive testing), performance (timing analysis)'
         )
         run_parser.add_argument(
             '--model',
@@ -116,10 +116,8 @@ Examples:
             return ScanConfig.accessibility_only(model=model)
         elif scan_type == 'ui':
             return ScanConfig.ui_only(model=model)
-        elif scan_type == 'interactive':
-            return ScanConfig(accessibility=False, ui_visual=False, performance=False, interactive=True, model=model)
         elif scan_type == 'performance':
-            return ScanConfig(accessibility=False, ui_visual=False, performance=True, interactive=False, model=model)
+            return ScanConfig.performance_only(model=model)
         else:  # 'all' or any other value
             return ScanConfig.all_scans(model=model)
     

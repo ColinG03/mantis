@@ -139,8 +139,8 @@ class Inspector(InspectorInterface):
             if config.performance:
                 await self._run_performance_scan(page, url, result)
             
-            # Run UI/visual and interactive scans if enabled
-            if config.ui_visual or config.interactive:
+            # Run comprehensive UI scans (visual + interactive) if enabled
+            if config.ui_scans:
                 await self._run_ui_scans(page, url, result, config)
             
             # Collect outlinks (always needed for crawling)
@@ -240,25 +240,15 @@ class Inspector(InspectorInterface):
             result.findings.append(error_bug)
     
     async def _run_ui_scans(self, page: Page, url: str, result: PageResult, config: ScanConfig):
-        """Run UI visual and interactive scans"""
+        """Run comprehensive UI scans"""
         try:
-            print(f"🔍 Running UI scans for {url}")
+            print(f"🔍 Running comprehensive UI exploration for {url}")
             
-            # Create structured explorer with filtered capabilities
+            # Create structured explorer
             explorer = StructuredExplorer(self.output_dir, config.model)
             
-            # Configure explorer based on scan config
-            if config.ui_visual and config.interactive:
-                # Run full exploration
-                explorer_result = await explorer.run_complete_exploration(page, url)
-            elif config.ui_visual:
-                # Run visual-only exploration (baseline screenshots and basic checks)
-                explorer_result = await explorer.run_visual_only_exploration(page, url)
-            elif config.interactive:
-                # Run interactive-only exploration (forms, dropdowns, etc.)
-                explorer_result = await explorer.run_interactive_only_exploration(page, url)
-            else:
-                return  # Nothing to run
+            # Always run complete exploration (visual + interactive)
+            explorer_result = await explorer.run_complete_exploration(page, url)
             
             # Merge results
             result.findings.extend(explorer_result.findings)

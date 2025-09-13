@@ -68,31 +68,34 @@ class ScanConfig:
     def __init__(
         self,
         accessibility: bool = True,
-        ui_visual: bool = True,
+        ui_scans: bool = True,
         performance: bool = False,
-        interactive: bool = True,
         model: str = 'cohere'
     ):
         self.accessibility = accessibility
-        self.ui_visual = ui_visual
+        self.ui_scans = ui_scans
         self.performance = performance
-        self.interactive = interactive
         self.model = model
     
     @classmethod
     def accessibility_only(cls, model: str = 'cohere') -> 'ScanConfig':
         """Create config for accessibility-only scanning"""
-        return cls(accessibility=True, ui_visual=False, performance=False, interactive=False, model=model)
+        return cls(accessibility=True, ui_scans=False, performance=False, model=model)
     
     @classmethod
     def ui_only(cls, model: str = 'cohere') -> 'ScanConfig':
-        """Create config for UI-only scanning"""
-        return cls(accessibility=False, ui_visual=True, performance=False, interactive=True, model=model)
+        """Create config for comprehensive UI scanning (visual + interactive)"""
+        return cls(accessibility=False, ui_scans=True, performance=False, model=model)
+    
+    @classmethod
+    def performance_only(cls, model: str = 'cohere') -> 'ScanConfig':
+        """Create config for performance-only scanning"""
+        return cls(accessibility=False, ui_scans=False, performance=True, model=model)
     
     @classmethod
     def all_scans(cls, model: str = 'cohere') -> 'ScanConfig':
         """Create config for all available scans"""
-        return cls(accessibility=True, ui_visual=True, performance=True, interactive=True, model=model)
+        return cls(accessibility=True, ui_scans=True, performance=True, model=model)
     
     def is_enabled(self, scan_type: str) -> bool:
         """Check if a specific scan type is enabled"""

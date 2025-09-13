@@ -70,7 +70,7 @@ class GeminiAnalyzer:
             viewport: Viewport size (e.g., "1280x800")
             page_url: URL being tested
         """
-        return f"""You are analyzing a screenshot of a web page for visual layout issues and severe UX problems.
+        return f"""You are analyzing a screenshot of a web page for severe visual layout issues and UX problems. Only report issues that will drastically impair the user's ability to use the page.
 
 **Context:** {context}
 **Viewport:** {viewport}
@@ -95,7 +95,9 @@ class GeminiAnalyzer:
 - Accessibility issues (color contrast, focus indicators)
 - Functional issues (whether buttons work)
 - Minor aesthetic preferences
-- Small spacing inconsistencies
+- Spacing inconsistencies
+- Viewport cutoffs that can be easily scrolled into view.
+- Contrast or color issues.
 
 **Response Format:**
 Return a JSON array of bug objects. Each bug should have:
