@@ -9,14 +9,14 @@ try:
     from ..utils.evidence import EvidenceCollector
     from ..utils.performance import PerformanceTracker
     from ..utils.action_recorder import ActionRecorder
-    from ..utils.gemini_analyzer import analyze_screenshot
+    from ..utils.cohere_analyzer import analyze_screenshot
     from ..playwright_helpers.link_detection import LinkDetector
 except ImportError:
     from core.types import Bug, Evidence, PageResult
     from inspector.utils.evidence import EvidenceCollector
     from inspector.utils.performance import PerformanceTracker
     from inspector.utils.action_recorder import ActionRecorder
-    from inspector.utils.gemini_analyzer import analyze_screenshot
+    from inspector.utils.cohere_analyzer import analyze_screenshot
     from inspector.playwright_helpers.link_detection import LinkDetector
 
 
@@ -108,16 +108,15 @@ class StructuredExplorer:
         print(f"  📸 Capturing baseline {viewport_name} screenshot")
         baseline_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
         
-        # Analyze baseline screenshot with Gemini
+        # Analyze baseline screenshot with Cohere Command-A-Vision
         if baseline_path:
             baseline_bugs, error = await analyze_screenshot(
                 baseline_path, 
-                "baseline view", 
                 viewport_key, 
                 page_url
             )
             if error:
-                print(f"      ⚠️  Gemini analysis error: {error}")
+                print(f"      ⚠️  Cohere analysis error: {error}")
             else:
                 self.bugs.extend(baseline_bugs)
                 if baseline_bugs:
@@ -261,12 +260,11 @@ class StructuredExplorer:
                     # Analyze form filled with edge case data
                     form_bugs, error = await analyze_screenshot(
                         screenshot_path, 
-                        "after filling form with long text data", 
                         viewport_key, 
                         page_url
                     )
                     if error:
-                        print(f"      ⚠️  Gemini analysis error: {error}")
+                        print(f"      ⚠️  Cohere analysis error: {error}")
                     else:
                         self.bugs.extend(form_bugs)
                         if form_bugs:
@@ -437,12 +435,11 @@ class StructuredExplorer:
                             element_text = element_text or "unknown"
                             dropdown_bugs, error = await analyze_screenshot(
                                 screenshot_path, 
-                                f"after opening '{element_text[:30]}' dropdown menu", 
                                 viewport_key, 
                                 page_url
                             )
                             if error:
-                                print(f"      ⚠️  Gemini analysis error: {error}")
+                                print(f"      ⚠️  Cohere analysis error: {error}")
                             else:
                                 self.bugs.extend(dropdown_bugs)
                                 if dropdown_bugs:
@@ -587,12 +584,11 @@ class StructuredExplorer:
                             # Analyze modal open state
                             modal_bugs, error = await analyze_screenshot(
                                 screenshot_path, 
-                                f"after opening modal dialog", 
                                 viewport_key, 
                                 page_url
                             )
                             if error:
-                                print(f"      ⚠️  Gemini analysis error: {error}")
+                                print(f"      ⚠️  Cohere analysis error: {error}")
                             else:
                                 self.bugs.extend(modal_bugs)
                                 if modal_bugs:
@@ -655,12 +651,11 @@ class StructuredExplorer:
                             # Analyze accordion expanded state
                             accordion_bugs, error = await analyze_screenshot(
                                 screenshot_path, 
-                                f"after expanding accordion section", 
                                 viewport_key, 
                                 page_url
                             )
                             if error:
-                                print(f"      ⚠️  Gemini analysis error: {error}")
+                                print(f"      ⚠️  Cohere analysis error: {error}")
                             else:
                                 self.bugs.extend(accordion_bugs)
                                 if accordion_bugs:
@@ -717,7 +712,7 @@ class StructuredExplorer:
     
     async def run_visual_only_exploration(self, page: Page, page_url: str) -> PageResult:
         """
-        Run visual-only exploration (baseline screenshots and Gemini analysis).
+        Run visual-only exploration (baseline screenshots and Cohere Command-A-Vision analysis).
         No interactive testing.
         """
         print(f"\n🔍 Starting visual-only exploration of {page_url}")
@@ -757,16 +752,15 @@ class StructuredExplorer:
                 print(f"  📸 Capturing baseline {viewport_name} screenshot")
                 baseline_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
                 
-                # Analyze baseline screenshot with Gemini
+                # Analyze baseline screenshot with Cohere Command-A-Vision
                 if baseline_path:
                     baseline_bugs, error = await analyze_screenshot(
                         baseline_path, 
-                        "baseline view", 
                         viewport_key, 
                         page_url
                     )
                     if error:
-                        print(f"      ⚠️  Gemini analysis error: {error}")
+                        print(f"      ⚠️  Cohere analysis error: {error}")
                     else:
                         self.bugs.extend(baseline_bugs)
                         if baseline_bugs:
