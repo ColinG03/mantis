@@ -15,6 +15,7 @@ from inspector.playwright_helpers.page_setup import PageSetup
 from inspector.playwright_helpers.link_detection import LinkDetector
 from inspector.checks.structured_explorer import StructuredExplorer
 from inspector.checks.accessibility_scanner import AccessibilityScanner
+from inspector.checks.performance_scanner import PerformanceScanner
 from inspector.checks.base_scanner import ScanConfig
 
 
@@ -134,6 +135,10 @@ class Inspector(InspectorInterface):
             if config.accessibility:
                 await self._run_accessibility_scan(page, url, result)
             
+            # Run performance scan if enabled
+            if config.performance:
+                await self._run_performance_scan(page, url, result)
+            
             # Run UI/visual and interactive scans if enabled
             if config.ui_visual or config.interactive:
                 await self._run_ui_scans(page, url, result, config)
@@ -190,6 +195,47 @@ class Inspector(InspectorInterface):
                 page_url=url,
                 summary=f"Accessibility scan error: {str(e)}",
                 suggested_fix="Review accessibility scanner configuration"
+            )
+            result.findings.append(error_bug)
+    
+    async def _run_performance_scan(self, page: Page, url: str, result: PageResult):
+        """Run performance scan and merge results"""
+        try:
+            print(f"⚡ Running performance scan for {url}")
+            performance_scanner = PerformanceScanner(self.output_dir)
+            
+            # Run performance scan across multiple viewports to catch responsive performance issues
+            viewports = ["1280x800", "768x1024", "375x667"]  # Desktop, tablet, mobile
+            
+            for viewport in viewports:
+                # Parse viewport dimensions
+                width, height = map(int, viewport.split('x'))
+                
+                # Set viewport
+                await page.set_viewport_size({"width": width, "height": height})
+                
+                # Wait for any layout changes to settle
+                await page.wait_for_timeout(500)
+                
+                # Run performance scan for this viewport
+                perf_result = await performance_scanner.scan(page, url, viewport)
+                perf_result.merge_into_page_result(result)
+            
+            # Also collect the performance timing data into the result
+            performance_tracker = PerformanceTracker()
+            timing_data = await performance_tracker.collect_timings(page)
+            result.timings.update(timing_data)
+            
+        except Exception as e:
+            print(f"❌ Performance scan failed: {str(e)}")
+            # Add error bug
+            error_bug = Bug(
+                id=str(uuid.uuid4()),
+                type="Performance",
+                severity="medium",
+                page_url=url,
+                summary=f"Performance scan error: {str(e)}",
+                suggested_fix="Review performance scanner configuration and page accessibility"
             )
             result.findings.append(error_bug)
     

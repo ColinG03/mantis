@@ -70,7 +70,7 @@ Examples:
         )
         run_parser.add_argument(
             '--scan-type',
-            choices=['all', 'accessibility', 'ui', 'interactive'],
+            choices=['all', 'accessibility', 'ui', 'interactive', 'performance'],
             default='all',
             help='Type of scan to perform (default: all)'
         )
@@ -112,6 +112,8 @@ Examples:
             return ScanConfig.ui_only()
         elif scan_type == 'interactive':
             return ScanConfig(accessibility=False, ui_visual=False, performance=False, interactive=True)
+        elif scan_type == 'performance':
+            return ScanConfig(accessibility=False, ui_visual=False, performance=True, interactive=False)
         else:  # 'all' or any other value
             return ScanConfig.all_scans()
     

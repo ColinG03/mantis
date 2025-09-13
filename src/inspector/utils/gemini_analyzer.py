@@ -24,7 +24,7 @@ except ImportError:
 
 class GeminiAnalyzer:
     """
-    Analyzes screenshots using Gemini 2.0 Flash to detect visual layout issues and severe UX problems.
+    Analyzes screenshots using Gemini 2.5 Flash to detect visual layout issues and severe UX problems.
     """
     
     def __init__(self, api_key: Optional[str] = None):
@@ -43,7 +43,7 @@ class GeminiAnalyzer:
         
         # Configure Gemini
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
         
         # Generation config for consistent responses
         self.generation_config = {
