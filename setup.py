@@ -42,6 +42,7 @@ setup(
         "requests>=2.25.0",
         "lxml>=4.6.0",
         "python-socketio[client]>=5.0.0",
+        "cohere>=5.0.0",
     ],
     extras_require={
         "dev": [

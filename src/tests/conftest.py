@@ -60,8 +60,8 @@ def temp_image_file():
 
 
 @pytest.fixture
-def sample_gemini_responses():
-    """Sample responses that Gemini might return"""
+def sample_cohere_responses():
+    """Sample responses that Cohere Command-A-Vision might return"""
     return {
         'valid_bugs': '''[
             {
