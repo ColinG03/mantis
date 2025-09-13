@@ -1,8 +1,10 @@
 name: Mantis Web Crawler
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main        # Change this to your deployment branch
+      - Test branch     # Add other branches that trigger deployments
   workflow_dispatch:
     inputs:
       url:
@@ -15,13 +17,40 @@ permissions:
   pull-requests: write
 
 jobs:
+  wait-for-vercel:
+    runs-on: ubuntu-latest
+    outputs:
+      deployment-url: ${{ steps.get-url.outputs.url }}
+    steps:
+      - name: 🧾 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⏳ Wait for Vercel Deployment
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.1
+        id: wait-for-vercel
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 600  # 10 minutes
+          check_interval: 30  # Check every 30 seconds
+
+      - name: 🔗 Get Deployment URL
+        id: get-url
+        run: |
+          # Extract URL from Vercel deployment
+          URL="${{ steps.wait-for-vercel.outputs.url }}"
+          if [[ -z "$URL" ]]; then
+            # Fallback to manual URL if provided, or default
+            URL="${{ inputs.url || 'https://michael-cronin.com' }}"
+          fi
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "🌐 Will scan: $URL"
+
   scan:
     runs-on: ubuntu-latest
+    needs: wait-for-vercel
     env:
-      # ---------- EDIT THESE DEFAULTS ----------
-      MANTIS_URL: ${{ inputs.url || 'https://michael-cronin.com' }}
-      # Example if you use PR-based previews:
-      # MANTIS_URL: https://preview-${{ github.event.pull_request.number }}.yourdomain.com
+      # ---------- CONFIGURATION ----------
+      MANTIS_URL: ${{ needs.wait-for-vercel.outputs.deployment-url }}
       MANTIS_MAX_PAGES: "25"
       MANTIS_MAX_DEPTH: "2"
       MANTIS_VERBOSE: "false"        # "true" for more logs
@@ -243,41 +272,55 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: 💬 Comment on PR
-        if: github.event_name == 'pull_request'
-        uses: thollander/actions-comment-pull-request@v3
+      - name: 📝 Create Deployment Comment
+        uses: actions/github-script@v7
         with:
-          message: |
-            ## 🦗 Mantis Web Crawler Results
+          script: |
+            const { data: commits } = await github.rest.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              per_page: 1
+            });
             
-            **Scanned URL:** `${{ env.MANTIS_URL }}`  
-            **Pages Analyzed:** ${{ steps.run.outputs.pages }}
+            const commitMessage = commits[0]?.commit?.message || 'Deployment scan';
+            const deploymentUrl = '${{ env.MANTIS_URL }}';
+            const total = '${{ steps.run.outputs.total }}';
+            const critical = '${{ steps.run.outputs.critical }}';
+            const high = '${{ steps.run.outputs.high }}';
+            const medium = '${{ steps.run.outputs.medium }}';
+            const low = '${{ steps.run.outputs.low }}';
+            const pages = '${{ steps.run.outputs.pages }}';
+            
+            const statusEmoji = total === '0' ? '✅' : (parseInt(critical) > 0 || parseInt(high) > 0) ? '⚠️' : '📊';
+            const statusText = total === '0' ? 'No issues detected!' : 'Issues found - review needed';
+            
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `## ${statusEmoji} Mantis Deployment Scan Results
+            
+            **🌐 Scanned URL:** [${deploymentUrl}](${deploymentUrl})  
+            **📄 Pages Analyzed:** ${pages}  
+            **🏗️ Branch:** \`${context.ref.replace('refs/heads/', '')}\`
             
             ### 📊 Issue Summary
             | Severity | Count |
             |----------|-------|
-            | 🔴 Critical | **${{ steps.run.outputs.critical }}** |
-            | 🟠 High | **${{ steps.run.outputs.high }}** |
-            | 🟡 Medium | **${{ steps.run.outputs.medium }}** |
-            | 🔵 Low | **${{ steps.run.outputs.low }}** |
-            | **📈 Total** | **${{ steps.run.outputs.total }}** |
+            | 🔴 Critical | **${critical}** |
+            | 🟠 High | **${high}** |
+            | 🟡 Medium | **${medium}** |
+            | 🔵 Low | **${low}** |
+            | **📈 Total** | **${total}** |
             
-            ${{ steps.run.outputs.total == '0' && '### ✅ Excellent! No issues detected.' || '### 🔍 Issues Found' }}
-            ${{ steps.run.outputs.total != '0' && format('Please review the detailed report in the artifacts section below.') || '' }}
+            ${total === '0' ? '### ✅ Excellent! No issues detected.' : '### 🔍 Issues Found - Please Review'}
+            
+            **📎 Download Report:** Check the \`mantis-report-${{ github.run_id }}\` artifact for detailed HTML and JSON reports.
             
             ---
-            
-            **📎 Detailed Report:** Download the `mantis-report-${{ github.run_id }}` artifact and open `report_summary.html` for a detailed breakdown.  
-            **📄 Raw Data:** The complete JSON report is available as `report.json` in the same artifact.
-            
-            <details>
-            <summary>🔧 Scan Configuration</summary>
-            
-            - **Max Depth:** ${{ env.MANTIS_MAX_DEPTH }}
-            - **Max Pages:** ${{ env.MANTIS_MAX_PAGES }}
-            - **Scan Types:** All (Accessibility, UI, Logic, Performance)
-            </details>
-          mode: upsert
+            _Commit: ${commitMessage.split('\n')[0]}_`
+            });
 
       - name: 🚦 Fail on threshold
         if: env.MANTIS_FAIL_ON != 'none'
