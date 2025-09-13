@@ -74,6 +74,12 @@ Examples:
             default='all',
             help='Type of scan to perform (default: all)'
         )
+        run_parser.add_argument(
+            '--model',
+            choices=['cohere', 'gemini'],
+            default='cohere',
+            help='AI model to use for screenshot analysis (default: cohere)'
+        )
         
         return parser
     
@@ -104,27 +110,28 @@ Examples:
             
         return True
     
-    def _create_scan_config(self, scan_type: str) -> ScanConfig:
+    def _create_scan_config(self, scan_type: str, model: str = 'cohere') -> ScanConfig:
         """Create scan configuration based on CLI argument."""
         if scan_type == 'accessibility':
-            return ScanConfig.accessibility_only()
+            return ScanConfig.accessibility_only(model=model)
         elif scan_type == 'ui':
-            return ScanConfig.ui_only()
+            return ScanConfig.ui_only(model=model)
         elif scan_type == 'interactive':
-            return ScanConfig(accessibility=False, ui_visual=False, performance=False, interactive=True)
+            return ScanConfig(accessibility=False, ui_visual=False, performance=False, interactive=True, model=model)
         elif scan_type == 'performance':
-            return ScanConfig(accessibility=False, ui_visual=False, performance=True, interactive=False)
+            return ScanConfig(accessibility=False, ui_visual=False, performance=True, interactive=False, model=model)
         else:  # 'all' or any other value
-            return ScanConfig.all_scans()
+            return ScanConfig.all_scans(model=model)
     
     async def run_crawl(self, args: argparse.Namespace):
         """Execute the crawl with given arguments."""
         print(f"🔍 Starting crawl of {args.url}")
         print(f"📊 Configuration: max_depth={args.max_depth}, max_pages={args.max_pages}")
         print(f"🔬 Scan type: {args.scan_type}")
+        print(f"🤖 AI Model: {args.model}")
         
         # Create scan configuration based on CLI argument
-        scan_config = self._create_scan_config(args.scan_type)
+        scan_config = self._create_scan_config(args.scan_type, args.model)
         
         # Get inspector instance with scan configuration
         inspector = await get_inspector(scan_config=scan_config)
@@ -143,11 +150,12 @@ Examples:
                 progress_callback=self.progress_callback
             )
             
-            return report, None
+            return report, inspector.output_dir, inspector
             
-        finally:
-            # Clean up inspector
+        except Exception as e:
+            # Clean up inspector on error
             await inspector.close()
+            raise
     
     
     def setup_logging(self, verbose: bool = False) -> None:
@@ -184,7 +192,18 @@ Examples:
                         'console_log': bug.evidence.console_log,
                         'wcag': bug.evidence.wcag,
                         'viewport': bug.evidence.viewport
-                    }
+                    },
+                    'reproduction_steps': bug.reproduction_steps,
+                    'fix_steps': bug.fix_steps,
+                    'affected_elements': bug.affected_elements,
+                    'impact_description': bug.impact_description,
+                    'wcag_guidelines': bug.wcag_guidelines,
+                    'business_impact': bug.business_impact,
+                    'technical_details': bug.technical_details,
+                    'priority': bug.priority,
+                    'category': bug.category,
+                    'estimated_effort': bug.estimated_effort,
+                    'tags': bug.tags
                 }
                 for bug in report.findings
             ],
@@ -240,7 +259,8 @@ Examples:
                 print(f"  ... and {len(report.findings) - 5} more issues")
         
         print(f"\n📊 Page Status:")
-        success_count = sum(1 for page in report.pages if page.get('status') and page['status'] < 400)
+        print(f"Report statuses: {[page.get('status') for page in report.pages]}")
+        success_count = sum(1 for page in report.pages if page.get('status') and isinstance(page['status'], int) and page['status'] < 400)
         failed_count = len(report.pages) - success_count
         
         if success_count > 0:
@@ -267,13 +287,13 @@ Examples:
         if current == total:
             print()
     
-    def launch_dashboard(self, report: CrawlReport) -> None:
+    def launch_dashboard(self, report: CrawlReport, output_dir: Optional[str] = None) -> None:
         """Launch the dashboard with the crawl report."""
         try:
             from dashboard.server import DashboardServer
             
             print(f"\n🌐 Launching dashboard at http://localhost:8080...")
-            dashboard = DashboardServer(port=8080)
+            dashboard = DashboardServer(port=8080, output_dir=output_dir)
             dashboard.load_report(report)
             
             print(f"💡 Dashboard will open automatically in your browser")
@@ -311,7 +331,7 @@ async def main():
         # Execute command
         if args.command == 'run':
             # Run crawl
-            report, dashboard_server = await cli.run_crawl(args)
+            report, output_dir, inspector = await cli.run_crawl(args)
             
             # Save report
             cli.save_report(report, args.output)
@@ -322,11 +342,16 @@ async def main():
             # Handle dashboard
             if getattr(args, 'dashboard', False):
                 # Launch static dashboard with completed report
-                cli.launch_dashboard(report)
-            
-            # Exit with error code if bugs found (for CI/CD) - only if no dashboard
-            if not getattr(args, 'dashboard', False) and report.bugs_total > 0:
-                sys.exit(1)
+                # Don't clean up inspector yet - dashboard needs the screenshot files
+                cli.launch_dashboard(report, output_dir)
+                # Clean up inspector after dashboard closes
+                await inspector.close()
+            else:
+                # No dashboard - clean up inspector immediately
+                await inspector.close()
+                # Exit with error code if bugs found (for CI/CD)
+                if report.bugs_total > 0:
+                    sys.exit(1)
         
     except KeyboardInterrupt:
         print(f"\n⚠️  Crawl interrupted by user")

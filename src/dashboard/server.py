@@ -17,8 +17,9 @@ from core.types import CrawlReport
 class DashboardServer:
     """Web server for displaying crawl reports at localhost:8080."""
     
-    def __init__(self, port: int = 8080):
+    def __init__(self, port: int = 8080, output_dir: Optional[str] = None):
         self.port = port
+        self.output_dir = output_dir
         self.app = Flask(__name__, 
                         template_folder=str(Path(__file__).parent / 'templates'),
                         static_folder=str(Path(__file__).parent / 'static'))
@@ -73,6 +74,18 @@ class DashboardServer:
         def api_bugs_by_page():
             """API endpoint for bugs grouped by page."""
             return jsonify(self.get_bugs_by_page())
+        
+        @self.app.route('/screenshots/<path:filename>')
+        def serve_screenshot(filename):
+            """Serve screenshot files from the output directory."""
+            if not self.output_dir:
+                return "Screenshots not available", 404
+            
+            screenshots_dir = os.path.join(self.output_dir, 'screenshots')
+            if not os.path.exists(screenshots_dir):
+                return "Screenshots directory not found", 404
+            
+            return send_from_directory(screenshots_dir, filename)
         
     
     def load_report(self, report: CrawlReport) -> None:

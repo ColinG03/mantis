@@ -278,7 +278,6 @@ class AccessibilityScanner(BaseScanner):
             category="Functional",
             tags=[f"axe-{rule_id}", f"wcag-{self.wcag_level.lower()}", "accessibility"]
         )
-        
         result.add_finding(bug)
     
     async def _create_incomplete_bug(

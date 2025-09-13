@@ -81,6 +81,43 @@ class DashboardManager {
     }
 }
 
+// Screenshot Modal Functions
+function openScreenshotModal(imageSrc) {
+    const modal = document.getElementById('screenshotModal');
+    const modalImage = document.getElementById('modalImage');
+    
+    modalImage.src = imageSrc;
+    modal.style.display = 'block';
+    
+    // Prevent body scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+}
+
+function closeScreenshotModal() {
+    const modal = document.getElementById('screenshotModal');
+    modal.style.display = 'none';
+    
+    // Restore body scrolling
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal when ESC key is pressed
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeScreenshotModal();
+    }
+});
+
+// Prevent modal from closing when clicking on the image itself
+document.addEventListener('DOMContentLoaded', function() {
+    const modalImage = document.getElementById('modalImage');
+    if (modalImage) {
+        modalImage.addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+    }
+});
+
 // Initialize dashboard when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🌐 DOM loaded, initializing static dashboard...');

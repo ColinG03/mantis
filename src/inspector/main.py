@@ -245,7 +245,7 @@ class Inspector(InspectorInterface):
             print(f"🔍 Running UI scans for {url}")
             
             # Create structured explorer with filtered capabilities
-            explorer = StructuredExplorer(self.output_dir)
+            explorer = StructuredExplorer(self.output_dir, config.model)
             
             # Configure explorer based on scan config
             if config.ui_visual and config.interactive:

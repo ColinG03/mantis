@@ -131,22 +131,18 @@ Analyze this screenshot of {page_url} and identify ONLY severe visual layout iss
 Focus on detecting these types of issues:
 1. **Visual Layout Problems**: Overlapping elements, broken layouts, elements cut off
 2. **Broken Images**: Missing images, broken image placeholders, alt text showing
-3. **Text Issues**: Invisible text, unreadable text due to poor contrast
-4. **Critical UX Issues**: Broken navigation, inaccessible buttons, form problems
-5. **Mobile Issues** (if mobile viewport): Elements too small, horizontal scrolling needed
+3. **Critical UX Issues**: Broken navigation, inaccessible buttons, form problems
 
-For each issue found, create a bug object with:
-- id: unique identifier (generate with uuid format)
-- type: "Visual Layout" or "UX Issue" or "Accessibility"
-- severity: "critical", "high", "medium", or "low"
-- summary: Brief description of the issue
-- impact_description: How this affects users
-- page_url: "{page_url}"
-- affected_elements: Array of CSS selectors or descriptions
-- viewport: "{viewport}"
-- reproduction_steps: Array of steps to reproduce
-- fix_steps: Array of suggested fixes
-- wcag_guidelines: Array of relevant WCAG guidelines if applicable
+**Response Format:**
+Return a JSON array of bug objects. Each bug should have:
+- "summary": Brief description of the visual issue
+- "severity": One of "low", "medium", "high", "critical"
+- "suggested_fix": Optional brief suggestion
+
+DO NOT REPORT:
+1. Issues about dropdown menues hiding content below them when opened - that is not a bug, it's a feature.
+2. Issues about contrast or color usage.
+3. Non-critical spacing and layout issues. Only report these if they result in acutal usability issues.
 
 IMPORTANT RULES:
 - Only report REAL, VISIBLE issues in the screenshot
@@ -211,9 +207,9 @@ Analyze the screenshot and respond with JSON only:"""
                     continue
                     
                 # Validate and normalize fields
-                bug_type = item.get('type', 'Visual Layout')
-                if bug_type not in ['Visual Layout', 'UX Issue', 'Accessibility', 'UI']:
-                    bug_type = 'Visual Layout'  # Default fallback
+                bug_type = item.get('type', 'UI')
+                if bug_type != 'UI': 
+                    bug_type = 'UI'
                 
                 severity = item.get('severity', 'medium').lower()
                 if severity not in ['low', 'medium', 'high', 'critical']:

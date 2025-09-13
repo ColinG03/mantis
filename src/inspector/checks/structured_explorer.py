@@ -9,14 +9,14 @@ try:
     from ..utils.evidence import EvidenceCollector
     from ..utils.performance import PerformanceTracker
     from ..utils.action_recorder import ActionRecorder
-    from ..utils.cohere_analyzer import analyze_screenshot
+    from ..utils.analyzer_factory import analyze_screenshot
     from ..playwright_helpers.link_detection import LinkDetector
 except ImportError:
     from core.types import Bug, Evidence, PageResult
     from inspector.utils.evidence import EvidenceCollector
     from inspector.utils.performance import PerformanceTracker
     from inspector.utils.action_recorder import ActionRecorder
-    from inspector.utils.cohere_analyzer import analyze_screenshot
+    from inspector.utils.analyzer_factory import analyze_screenshot
     from inspector.playwright_helpers.link_detection import LinkDetector
 
 
@@ -33,10 +33,11 @@ class StructuredExplorer:
         {"name": "mobile", "width": 375, "height": 667}
     ]
     
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, model: str = 'cohere'):
         self.name = "Structured Explorer"
         self.description = "Direct page exploration with form testing and interactive element analysis"
         self.output_dir = output_dir
+        self.model = model
         self.bugs = []
         self.action_recorder: Optional[ActionRecorder] = None
         
@@ -108,16 +109,21 @@ class StructuredExplorer:
         print(f"  📸 Capturing baseline {viewport_name} screenshot")
         baseline_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
         
-        # Analyze baseline screenshot with Cohere Command-A-Vision
+        # Analyze baseline screenshot with selected model
         if baseline_path:
             baseline_bugs, error = await analyze_screenshot(
                 baseline_path, 
+                f"baseline view", 
                 viewport_key, 
-                page_url
+                page_url,
+                self.model
             )
             if error:
-                print(f"      ⚠️  Cohere analysis error: {error}")
+                print(f"      ⚠️  {self.model.title()} analysis error: {error}")
             else:
+                # Update screenshot paths in the bug evidence
+                for bug in baseline_bugs:
+                    bug.evidence.screenshot_path = baseline_path
                 self.bugs.extend(baseline_bugs)
                 if baseline_bugs:
                     print(f"      🔍 Found {len(baseline_bugs)} visual issues in baseline")
@@ -260,12 +266,17 @@ class StructuredExplorer:
                     # Analyze form filled with edge case data
                     form_bugs, error = await analyze_screenshot(
                         screenshot_path, 
+                        f"form filled with edge case data",
                         viewport_key, 
-                        page_url
+                        page_url,
+                        self.model
                     )
                     if error:
-                        print(f"      ⚠️  Cohere analysis error: {error}")
+                        print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
+                        # Update screenshot paths in the bug evidence
+                        for bug in form_bugs:
+                            bug.evidence.screenshot_path = screenshot_path
                         self.bugs.extend(form_bugs)
                         if form_bugs:
                             print(f"      🔍 Found {len(form_bugs)} visual issues in form {form_index + 1}")
@@ -435,12 +446,17 @@ class StructuredExplorer:
                             element_text = element_text or "unknown"
                             dropdown_bugs, error = await analyze_screenshot(
                                 screenshot_path, 
+                                f"dropdown opened for {element_text}",
                                 viewport_key, 
-                                page_url
+                                page_url,
+                                self.model
                             )
                             if error:
-                                print(f"      ⚠️  Cohere analysis error: {error}")
+                                print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                             else:
+                                # Update screenshot paths in the bug evidence
+                                for bug in dropdown_bugs:
+                                    bug.evidence.screenshot_path = screenshot_path
                                 self.bugs.extend(dropdown_bugs)
                                 if dropdown_bugs:
                                     print(f"      🔍 Found {len(dropdown_bugs)} visual issues in dropdown")
@@ -584,12 +600,17 @@ class StructuredExplorer:
                             # Analyze modal open state
                             modal_bugs, error = await analyze_screenshot(
                                 screenshot_path, 
+                                f"modal opened",
                                 viewport_key, 
-                                page_url
+                                page_url,
+                                self.model
                             )
                             if error:
-                                print(f"      ⚠️  Cohere analysis error: {error}")
+                                print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                             else:
+                                # Update screenshot paths in the bug evidence
+                                for bug in modal_bugs:
+                                    bug.evidence.screenshot_path = screenshot_path
                                 self.bugs.extend(modal_bugs)
                                 if modal_bugs:
                                     print(f"      🔍 Found {len(modal_bugs)} visual issues in modal")
@@ -651,12 +672,17 @@ class StructuredExplorer:
                             # Analyze accordion expanded state
                             accordion_bugs, error = await analyze_screenshot(
                                 screenshot_path, 
+                                f"accordion expanded",
                                 viewport_key, 
-                                page_url
+                                page_url,
+                                self.model
                             )
                             if error:
-                                print(f"      ⚠️  Cohere analysis error: {error}")
+                                print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                             else:
+                                # Update screenshot paths in the bug evidence
+                                for bug in accordion_bugs:
+                                    bug.evidence.screenshot_path = screenshot_path
                                 self.bugs.extend(accordion_bugs)
                                 if accordion_bugs:
                                     print(f"      🔍 Found {len(accordion_bugs)} visual issues in accordion")
@@ -752,16 +778,21 @@ class StructuredExplorer:
                 print(f"  📸 Capturing baseline {viewport_name} screenshot")
                 baseline_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
                 
-                # Analyze baseline screenshot with Cohere Command-A-Vision
+                # Analyze baseline screenshot with selected model
                 if baseline_path:
                     baseline_bugs, error = await analyze_screenshot(
                         baseline_path, 
+                        f"baseline view",
                         viewport_key, 
-                        page_url
+                        page_url,
+                        self.model
                     )
                     if error:
-                        print(f"      ⚠️  Cohere analysis error: {error}")
+                        print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
+                        # Update screenshot paths in the bug evidence
+                        for bug in baseline_bugs:
+                            bug.evidence.screenshot_path = baseline_path
                         self.bugs.extend(baseline_bugs)
                         if baseline_bugs:
                             print(f"      🔍 Found {len(baseline_bugs)} visual issues in baseline")
