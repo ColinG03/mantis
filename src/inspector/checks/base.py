@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 from playwright.async_api import Page
 
-from ...core.types import Bug, InspectorOptions
+from ...core.types import Bug
 
 
 class BaseCheck(ABC):
@@ -18,13 +18,13 @@ class BaseCheck(ABC):
         self.description = description
         
     @abstractmethod
-    async def run(self, page: Page, opts: InspectorOptions, viewport: str) -> List[Bug]:
+    async def run(self, page: Page, page_url: str, viewport: str) -> List[Bug]:
         """
         Execute the check on the given page.
         
         Args:
             page: Playwright page object
-            opts: Inspector configuration options
+            page_url: URL of the page being inspected
             viewport: Current viewport string (e.g., "1280x800")
             
         Returns:

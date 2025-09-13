@@ -1,20 +1,26 @@
 # Mantis UI Inspector
 
-The Inspector module is the core component that performs UI testing and accessibility analysis on web pages using Playwright.
+The Inspector module provides a **simple, singleton interface** for the orchestrator to perform comprehensive UI testing and accessibility analysis on web pages using Playwright.
+
+## Key Features
+
+- **Simple Interface**: Just call `inspector.inspect_page(url)` 
+- **Singleton Pattern**: One inspector instance handles all pages
+- **Multi-viewport Testing**: Automatically tests desktop, tablet, and mobile viewports
+- **Comprehensive Checks**: Accessibility, visual layout, and more
+- **Evidence Collection**: Screenshots, logs, and detailed bug reports
 
 ## Architecture
 
 ### Main Components
 
-- **`Inspector`** - Main orchestrator class that coordinates all checks
+- **`Inspector`** - Singleton orchestrator that coordinates all checks
 - **`BaseCheck`** - Abstract base class for all check implementations  
 - **`PageSetup`** - Handles safe navigation and page initialization
 - **`EvidenceCollector`** - Captures screenshots, logs, and other evidence
 - **`LinkDetector`** - Extracts outlinks without navigation
 
 ### Check Types
-
-The inspector supports different types of checks:
 
 - **`StaticCheck`** - No user interaction required (accessibility, visual analysis)
 - **`InteractiveCheck`** - Requires user interactions (forms, navigation)
@@ -36,34 +42,37 @@ The inspector supports different types of checks:
    - Elements outside viewport
    - Empty elements with visible dimensions
 
-## Usage
+## Simple Usage
 
 ```python
-from src.inspector import Inspector, AccessibilityCheck, VisualLayoutCheck
-from src.core.types import InspectorOptions
+from src.inspector import get_inspector
 
-# Create and configure inspector
-inspector = Inspector()
-inspector.register_check(AccessibilityCheck())
-inspector.register_check(VisualLayoutCheck())
+# Get the singleton inspector
+inspector = await get_inspector()
 
-# Set up options
-options = InspectorOptions(
-    url="https://example.com",
-    viewport_set=[
-        {"width": 1280, "height": 800},
-        {"width": 375, "height": 667}
-    ],
-    action_budget=10,
-    allow_interactions=True,
-    same_host_only=True,
-    seed_host="example.com",
-    timeouts={"nav_ms": 30000, "action_ms": 5000},
-    out_dir="./output"
-)
+# Just pass a URL - that's it!
+result = await inspector.inspect_page("https://example.com")
 
-# Run inspection
-result = await inspector.inspect_page(options)
+# Use the results
+print(f"Found {len(result.findings)} issues")
+for bug in result.findings:
+    print(f"[{bug.severity}] {bug.summary}")
+
+# Clean up when done
+await inspector.close()
+```
+
+### Multiple Pages
+
+```python
+inspector = await get_inspector()
+
+urls = ["https://example.com", "https://example.com/about"]
+for url in urls:
+    result = await inspector.inspect_page(url)
+    print(f"{url}: {len(result.findings)} issues")
+
+await inspector.close()
 ```
 
 ## Output

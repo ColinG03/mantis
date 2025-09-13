@@ -2,7 +2,7 @@ import uuid
 from typing import List
 from playwright.async_api import Page
 
-from ...core.types import Bug, InspectorOptions, Evidence
+from ...core.types import Bug, Evidence
 from .base import StaticCheck
 
 
@@ -25,24 +25,24 @@ class VisualLayoutCheck(StaticCheck):
             description="Detects visual and layout defects including overlaps and broken elements"
         )
     
-    async def run(self, page: Page, opts: InspectorOptions, viewport: str) -> List[Bug]:
+    async def run(self, page: Page, page_url: str, viewport: str) -> List[Bug]:
         """Run all visual layout checks"""
         bugs = []
         
         # Check for overlapping elements
-        bugs.extend(await self._check_overlapping_elements(page, opts.url))
+        bugs.extend(await self._check_overlapping_elements(page, page_url))
         
         # Check for broken images
-        bugs.extend(await self._check_broken_images(page, opts.url))
+        bugs.extend(await self._check_broken_images(page, page_url))
         
         # Check for invisible text
-        bugs.extend(await self._check_invisible_text(page, opts.url))
+        bugs.extend(await self._check_invisible_text(page, page_url))
         
         # Check for elements outside viewport
-        bugs.extend(await self._check_elements_outside_viewport(page, opts.url))
+        bugs.extend(await self._check_elements_outside_viewport(page, page_url))
         
         # Check for empty elements that should have content
-        bugs.extend(await self._check_empty_elements(page, opts.url))
+        bugs.extend(await self._check_empty_elements(page, page_url))
         
         return bugs
     

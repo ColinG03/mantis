@@ -1,13 +1,17 @@
 import asyncio
 import time
 import uuid
-from typing import List, Dict, Any
+import os
+import tempfile
+from typing import List, Dict, Any, Optional
 from urllib.parse import urljoin, urlparse
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
-from ..core.types import Inspector as InspectorInterface, InspectorOptions, PageResult, Bug, Evidence
+from ..core.types import Inspector as InspectorInterface, PageResult, Bug, Evidence
 from .checks.base import BaseCheck
+from .checks.accessibility import AccessibilityCheck
+from .checks.visual_layout import VisualLayoutCheck
 from .utils.evidence import EvidenceCollector
 from .utils.performance import PerformanceTracker
 from .playwright_helpers.page_setup import PageSetup
@@ -16,152 +20,185 @@ from .playwright_helpers.link_detection import LinkDetector
 
 class Inspector(InspectorInterface):
     """
-    Main Inspector class that orchestrates Playwright-based UI testing.
+    Singleton Inspector that provides a simple interface for the orchestrator.
     
-    Responsibilities:
-    - Set up browser context and page
-    - Navigate to target URL safely
-    - Execute all registered checks across multiple viewports
-    - Collect evidence for found issues
-    - Return comprehensive PageResult
+    Just call inspector.inspect_page(url) and get back a PageResult with findings
+    across multiple viewports and all configured checks.
     """
     
+    _instance: Optional['Inspector'] = None
+    _browser: Optional[Browser] = None
+    _playwright = None
+    
+    # Default viewports to test
+    DEFAULT_VIEWPORTS = [
+        {"width": 1280, "height": 800},   # Desktop
+        {"width": 768, "height": 1024},   # Tablet  
+        {"width": 375, "height": 667}     # Mobile
+    ]
+    
+    # Default timeouts
+    DEFAULT_TIMEOUTS = {
+        "nav_ms": 30000,    # 30 seconds for navigation
+        "action_ms": 5000   # 5 seconds for interactions
+    }
+    
+    def __new__(cls) -> 'Inspector':
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
+        if self._initialized:
+            return
+            
         self.checks: List[BaseCheck] = []
-        self.browser: Browser = None
-        self.context: BrowserContext = None
+        self.output_dir = tempfile.mkdtemp(prefix="mantis_")
         
-    def register_check(self, check: BaseCheck):
-        """Register a check to be run during inspection"""
-        self.checks.append(check)
-        
-    async def inspect_page(self, opts: InspectorOptions) -> PageResult:
+        # Register default checks
+        self._register_default_checks()
+        self._initialized = True
+    
+    def _register_default_checks(self):
+        """Register all available checks"""
+        self.checks = [
+            AccessibilityCheck(),
+            VisualLayoutCheck()
+        ]
+    
+    @classmethod
+    async def get_instance(cls) -> 'Inspector':
+        """Get the singleton instance and ensure browser is ready"""
+        instance = cls()
+        await instance._ensure_browser_ready()
+        return instance
+    
+    async def _ensure_browser_ready(self):
+        """Ensure the browser is launched and ready"""
+        if self._browser is None or not self._browser.is_connected():
+            if self._playwright is None:
+                self._playwright = await async_playwright().start()
+            
+            self._browser = await self._playwright.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage']  # Better for containers
+            )
+    
+    async def inspect_page(self, url: str) -> PageResult:
         """
-        Main entry point for page inspection.
+        Inspect a single page and return comprehensive results.
         
         Args:
-            opts: Configuration options for the inspection
+            url: The URL to inspect
             
         Returns:
-            PageResult containing all findings and metadata
+            PageResult with all findings across viewports
         """
-        result = PageResult(page_url=opts.url)
+        await self._ensure_browser_ready()
+        
+        result = PageResult(page_url=url)
         performance_tracker = PerformanceTracker()
         
+        context = None
         try:
-            # Initialize browser and context
-            async with async_playwright() as p:
-                self.browser = await p.chromium.launch(headless=True)
-                self.context = await self._setup_context(opts)
+            # Create browser context
+            context = await self._create_context()
+            
+            # Set up page
+            page = await context.new_page()
+            page_setup = PageSetup(page, url, self.DEFAULT_TIMEOUTS)
+            
+            # Navigate to URL and collect initial metrics
+            navigation_start = time.time()
+            success = await page_setup.navigate_safely()
+            
+            if not success:
+                result.findings.append(Bug(
+                    id=str(uuid.uuid4()),
+                    type="Logic",
+                    severity="high", 
+                    page_url=url,
+                    summary="Failed to navigate to page",
+                    suggested_fix="Check if URL is accessible and valid"
+                ))
+                return result
+            
+            result.status = await page_setup.get_response_status()
+            result.timings = await performance_tracker.collect_timings(page)
+            result.timings['navigation_duration'] = (time.time() - navigation_start) * 1000
+            
+            # Set up evidence collection
+            evidence_collector = EvidenceCollector(page, self.output_dir)
+            
+            # Detect outlinks
+            link_detector = LinkDetector(page, url)
+            result.outlinks = await link_detector.collect_outlinks()
+            
+            # Run checks across all viewports
+            for viewport in self.DEFAULT_VIEWPORTS:
+                viewport_key = f"{viewport['width']}x{viewport['height']}"
                 
-                # Set up page with initial configuration
-                page = await self.context.new_page()
-                page_setup = PageSetup(page, opts)
+                # Set viewport
+                await page.set_viewport_size(viewport['width'], viewport['height'])
+                await asyncio.sleep(0.5)  # Allow layout to settle
                 
-                # Navigate to target URL and collect initial metrics
-                navigation_start = time.time()
-                await page_setup.navigate_safely()
-                result.status = await page_setup.get_response_status()
+                # Run all checks for this viewport
+                viewport_bugs = await self._run_checks_for_viewport(
+                    page, url, viewport_key, evidence_collector
+                )
                 
-                # Collect performance timings
-                result.timings = await performance_tracker.collect_timings(page)
-                result.timings['navigation_duration'] = time.time() - navigation_start
+                result.findings.extend(viewport_bugs)
                 
-                # Set up evidence collection
-                evidence_collector = EvidenceCollector(page, opts.out_dir)
-                
-                # Detect outlinks without navigation
-                link_detector = LinkDetector(page, opts)
-                result.outlinks = await link_detector.collect_outlinks()
-                
-                # Run checks across all viewports
-                for viewport in opts.viewport_set:
-                    viewport_key = f"{viewport['width']}x{viewport['height']}"
-                    
-                    # Set viewport
-                    await page.set_viewport_size(viewport['width'], viewport['height'])
-                    await asyncio.sleep(0.5)  # Allow layout to settle
-                    
-                    # Run all registered checks for this viewport
-                    viewport_bugs = await self._run_checks_for_viewport(
-                        page, opts, viewport_key, evidence_collector
-                    )
-                    
-                    result.findings.extend(viewport_bugs)
-                    
-                    # Collect viewport artifacts
-                    artifact_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
-                    if artifact_path:
-                        result.viewport_artifacts.append(artifact_path)
-                
-                # Collect final console logs and traces
-                result.trace = await self._collect_trace_data(page)
-                
-        except PlaywrightTimeoutError as e:
-            # Handle navigation timeouts gracefully
+                # Capture viewport screenshot
+                artifact_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
+                if artifact_path:
+                    result.viewport_artifacts.append(artifact_path)
+            
+            # Collect final trace data
+            result.trace = await self._collect_trace_data(page)
+            
+        except PlaywrightTimeoutError:
             result.findings.append(Bug(
                 id=str(uuid.uuid4()),
                 type="UI",
                 severity="medium",
-                page_url=opts.url,
-                summary=f"Page navigation timeout: {str(e)}",
-                suggested_fix="Check if page loads properly or increase timeout values"
+                page_url=url,
+                summary="Page navigation or loading timeout",
+                suggested_fix="Check page performance and loading speed"
             ))
             
         except Exception as e:
-            # Handle unexpected errors
             result.findings.append(Bug(
                 id=str(uuid.uuid4()),
-                type="Logic",
+                type="Logic", 
                 severity="high",
-                page_url=opts.url,
+                page_url=url,
                 summary=f"Inspector error: {str(e)}",
-                suggested_fix="Review page structure and inspector configuration"
+                suggested_fix="Review page structure and inspector compatibility"
             ))
             
         finally:
-            # Cleanup
-            if self.context:
-                await self.context.close()
-            if self.browser:
-                await self.browser.close()
+            if context:
+                await context.close()
                 
         return result
     
-    async def _setup_context(self, opts: InspectorOptions) -> BrowserContext:
-        """Set up browser context with authentication and headers"""
-        context_options = {
-            'viewport': None,  # We'll set viewport per check
-            'user_agent': 'Mantis-UI-Inspector/1.0'
-        }
-        
-        # Add custom headers if provided
-        if opts.headers:
-            context_options['extra_http_headers'] = opts.headers
-            
-        context = await self.browser.new_context(**context_options)
-        
-        # Set authentication cookies if provided
-        if opts.auth_cookies:
-            # Parse and set cookies (simplified - you might want more robust parsing)
-            cookies = []
-            for cookie_str in opts.auth_cookies.split(';'):
-                if '=' in cookie_str:
-                    name, value = cookie_str.strip().split('=', 1)
-                    cookies.append({
-                        'name': name,
-                        'value': value,
-                        'domain': opts.seed_host,
-                        'path': '/'
-                    })
-            await context.add_cookies(cookies)
-            
-        return context
+    async def _create_context(self) -> BrowserContext:
+        """Create a browser context with sensible defaults"""
+        return await self._browser.new_context(
+            viewport=None,  # We'll set viewport per check
+            user_agent='Mantis-UI-Inspector/1.0',
+            ignore_https_errors=True,  # Be lenient with SSL issues
+            extra_http_headers={
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        )
     
     async def _run_checks_for_viewport(
         self, 
         page: Page, 
-        opts: InspectorOptions, 
+        url: str,
         viewport_key: str,
         evidence_collector: EvidenceCollector
     ) -> List[Bug]:
@@ -171,9 +208,9 @@ class Inspector(InspectorInterface):
         for check in self.checks:
             try:
                 # Run the check
-                check_bugs = await check.run(page, opts, viewport_key)
+                check_bugs = await check.run(page, url, viewport_key)
                 
-                # Enhance bugs with evidence if needed
+                # Enhance bugs with evidence
                 for bug in check_bugs:
                     if not bug.evidence.screenshot_path and check.requires_screenshot():
                         screenshot_path = await evidence_collector.capture_bug_screenshot(
@@ -187,12 +224,12 @@ class Inspector(InspectorInterface):
                 bugs.extend(check_bugs)
                 
             except Exception as e:
-                # If a check fails, create a bug about the check failure
+                # Create a bug for the check failure
                 bugs.append(Bug(
                     id=str(uuid.uuid4()),
                     type="Logic",
                     severity="low",
-                    page_url=opts.url,
+                    page_url=url,
                     summary=f"Check '{check.__class__.__name__}' failed: {str(e)}",
                     evidence=Evidence(viewport=viewport_key)
                 ))
@@ -200,13 +237,33 @@ class Inspector(InspectorInterface):
         return bugs
     
     async def _collect_trace_data(self, page: Page) -> List[Dict]:
-        """Collect trace data like console logs, network requests, etc."""
-        trace_data = []
+        """Collect basic trace data for debugging"""
+        # This is simplified - you could collect more detailed traces
+        return []
+    
+    async def close(self):
+        """Clean up resources"""
+        if self._browser and self._browser.is_connected():
+            await self._browser.close()
+        if self._playwright:
+            await self._playwright.stop()
         
-        # This is a placeholder - you might want to collect:
-        # - Console logs
-        # - Network requests
-        # - JavaScript errors
-        # - Performance marks
-        
-        return trace_data
+        # Reset singleton state
+        Inspector._instance = None
+        Inspector._browser = None
+        Inspector._playwright = None
+    
+    def __del__(self):
+        """Cleanup on deletion"""
+        if hasattr(self, 'output_dir') and os.path.exists(self.output_dir):
+            import shutil
+            try:
+                shutil.rmtree(self.output_dir)
+            except:
+                pass  # Best effort cleanup
+
+
+# Convenience function for getting the singleton
+async def get_inspector() -> Inspector:
+    """Get the singleton Inspector instance"""
+    return await Inspector.get_instance()

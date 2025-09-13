@@ -43,18 +43,5 @@ class CrawlReport:
     findings: List[Bug]
     pages: List[Dict]  # {url, depth, status}
 
-@dataclass
-class InspectorOptions:
-    url: str
-    viewport_set: List[Dict[str,int]]
-    action_budget: int
-    allow_interactions: bool
-    same_host_only: bool
-    seed_host: str
-    auth_cookies: Optional[str]
-    headers: Optional[Dict[str,str]]
-    timeouts: Dict[str,int]  # {"nav_ms":..., "action_ms":...}
-    out_dir: str
-
 class Inspector:
-    async def inspect_page(self, opts: InspectorOptions) -> PageResult: ...
+    async def inspect_page(self, url: str) -> PageResult: ...

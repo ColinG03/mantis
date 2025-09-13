@@ -2,7 +2,7 @@ import uuid
 from typing import List
 from playwright.async_api import Page
 
-from ...core.types import Bug, InspectorOptions, Evidence
+from ...core.types import Bug, Evidence
 from .base import StaticCheck
 
 
@@ -25,24 +25,24 @@ class AccessibilityCheck(StaticCheck):
             description="Comprehensive accessibility analysis including WCAG compliance"
         )
     
-    async def run(self, page: Page, opts: InspectorOptions, viewport: str) -> List[Bug]:
+    async def run(self, page: Page, page_url: str, viewport: str) -> List[Bug]:
         """Run all accessibility checks on the page"""
         bugs = []
         
         # Check for missing alt text
-        bugs.extend(await self._check_missing_alt_text(page, opts.url))
+        bugs.extend(await self._check_missing_alt_text(page, page_url))
         
         # Check for missing form labels
-        bugs.extend(await self._check_form_labels(page, opts.url))
+        bugs.extend(await self._check_form_labels(page, page_url))
         
         # Check heading structure
-        bugs.extend(await self._check_heading_structure(page, opts.url))
+        bugs.extend(await self._check_heading_structure(page, page_url))
         
         # Check color contrast (simplified version)
-        bugs.extend(await self._check_color_contrast(page, opts.url))
+        bugs.extend(await self._check_color_contrast(page, page_url))
         
         # Check for keyboard accessibility
-        bugs.extend(await self._check_keyboard_accessibility(page, opts.url))
+        bugs.extend(await self._check_keyboard_accessibility(page, page_url))
         
         return bugs
     

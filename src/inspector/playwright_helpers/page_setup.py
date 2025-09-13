@@ -1,10 +1,8 @@
 import asyncio
-from typing import Optional
+from typing import Optional, Dict
 from urllib.parse import urlparse
 
 from playwright.async_api import Page, Response, TimeoutError as PlaywrightTimeoutError
-
-from ...core.types import InspectorOptions
 
 
 class PageSetup:
@@ -12,9 +10,10 @@ class PageSetup:
     Handles safe page navigation and initial setup for inspection.
     """
     
-    def __init__(self, page: Page, opts: InspectorOptions):
+    def __init__(self, page: Page, url: str, timeouts: Dict[str, int]):
         self.page = page
-        self.opts = opts
+        self.url = url
+        self.timeouts = timeouts
         self.response: Optional[Response] = None
         
     async def navigate_safely(self) -> bool:
@@ -29,9 +28,9 @@ class PageSetup:
             await self._setup_logging()
             
             # Navigate with timeout
-            nav_timeout = self.opts.timeouts.get('nav_ms', 30000)
+            nav_timeout = self.timeouts.get('nav_ms', 30000)
             self.response = await self.page.goto(
-                self.opts.url,
+                self.url,
                 wait_until='domcontentloaded',
                 timeout=nav_timeout
             )
@@ -42,10 +41,10 @@ class PageSetup:
             return True
             
         except PlaywrightTimeoutError:
-            print(f"Navigation timeout for {self.opts.url}")
+            print(f"Navigation timeout for {self.url}")
             return False
         except Exception as e:
-            print(f"Navigation error for {self.opts.url}: {str(e)}")
+            print(f"Navigation error for {self.url}: {str(e)}")
             return False
     
     async def get_response_status(self) -> Optional[int]:
@@ -111,24 +110,13 @@ class PageSetup:
             # Page might still be loading, but we'll proceed with inspection
             pass
     
-    async def is_same_origin(self, url: str) -> bool:
-        """
-        Check if a URL is from the same origin as the seed host.
-        
-        Args:
-            url: URL to check
-            
-        Returns:
-            True if same origin (when same_host_only is enabled)
-        """
-        if not self.opts.same_host_only:
-            return True
-            
+    def get_host(self) -> str:
+        """Get the host from the current URL"""
         try:
-            parsed_url = urlparse(url)
-            return parsed_url.netloc == self.opts.seed_host
+            parsed = urlparse(self.url)
+            return parsed.netloc
         except Exception:
-            return False
+            return ""
     
     async def scroll_to_reveal_content(self):
         """

@@ -2,20 +2,19 @@ from typing import List, Set
 from urllib.parse import urljoin, urlparse
 from playwright.async_api import Page
 
-from ...core.types import InspectorOptions
-
 
 class LinkDetector:
     """
     Safely detect and collect outlinks from a page without navigation.
     
     This class extracts all links from the current page that the orchestrator
-    should consider for crawling, while respecting same-host restrictions.
+    should consider for crawling.
     """
     
-    def __init__(self, page: Page, opts: InspectorOptions):
+    def __init__(self, page: Page, current_url: str):
         self.page = page
-        self.opts = opts
+        self.current_url = current_url
+        self.current_host = urlparse(current_url).netloc
         
     async def collect_outlinks(self) -> List[str]:
         """
@@ -30,10 +29,6 @@ class LinkDetector:
             
             # Process and filter links
             processed_links = self._process_links(raw_links)
-            
-            # Apply same-host filtering if enabled
-            if self.opts.same_host_only:
-                processed_links = self._filter_same_host(processed_links)
             
             # Remove duplicates and return
             return list(set(processed_links))
@@ -95,7 +90,7 @@ class LinkDetector:
             List of processed absolute URLs
         """
         processed = []
-        base_url = self.opts.url
+        base_url = self.current_url
         
         for link in raw_links:
             try:
@@ -133,7 +128,7 @@ class LinkDetector:
                 
         return processed
     
-    def _filter_same_host(self, links: List[str]) -> List[str]:
+    def get_same_host_links(self, links: List[str]) -> List[str]:
         """
         Filter links to only include those from the same host.
         
@@ -143,16 +138,12 @@ class LinkDetector:
         Returns:
             List of URLs from the same host
         """
-        if not self.opts.same_host_only:
-            return links
-            
         filtered = []
-        seed_host = self.opts.seed_host
         
         for link in links:
             try:
                 parsed = urlparse(link)
-                if parsed.netloc == seed_host:
+                if parsed.netloc == self.current_host:
                     filtered.append(link)
             except Exception:
                 continue
