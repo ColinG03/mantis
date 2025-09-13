@@ -16,6 +16,7 @@ from inspector.utils.evidence import EvidenceCollector
 from inspector.utils.performance import PerformanceTracker
 from inspector.playwright_helpers.page_setup import PageSetup
 from inspector.playwright_helpers.link_detection import LinkDetector
+from inspector.checks.structured_explorer import StructuredExplorer
 
 
 class Inspector(InspectorInterface):
@@ -30,47 +31,42 @@ class Inspector(InspectorInterface):
     _browser: Optional[Browser] = None
     _playwright = None
     
-    # Default viewports to test
-    DEFAULT_VIEWPORTS = [
-        {"width": 1280, "height": 800},   # Desktop
-        {"width": 768, "height": 1024},   # Tablet  
-        {"width": 375, "height": 667}     # Mobile
-    ]
-    
     # Default timeouts
     DEFAULT_TIMEOUTS = {
         "nav_ms": 30000,    # 30 seconds for navigation
         "action_ms": 5000   # 5 seconds for interactions
     }
     
-    def __new__(cls) -> 'Inspector':
+    def __new__(cls, testing_mode: bool = False) -> 'Inspector':
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
+            cls._instance._testing_mode = testing_mode
         return cls._instance
     
-    def __init__(self):
+    def __init__(self, testing_mode: bool = False):
         if self._initialized:
             return
             
-        self.checks: List[BaseCheck] = []
-        self.output_dir = tempfile.mkdtemp(prefix="mantis_")
+        self.testing_mode = testing_mode
         
-        # Register default checks
-        self._register_default_checks()
+        # Set output directory based on testing mode
+        if self.testing_mode:
+            # Use permanent location relative to project directory
+            current_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Go up to project root
+            self.output_dir = os.path.join(current_dir, "mantis_test_output")
+            os.makedirs(self.output_dir, exist_ok=True)
+            print(f"🧪 Testing mode: Images will be saved to {self.output_dir}")
+        else:
+            # Use temporary directory for production
+            self.output_dir = tempfile.mkdtemp(prefix="mantis_")
+        
         self._initialized = True
     
-    def _register_default_checks(self):
-        """Register all available checks"""
-        self.checks = [
-            AccessibilityCheck(),
-            VisualLayoutCheck()
-        ]
-    
     @classmethod
-    async def get_instance(cls) -> 'Inspector':
+    async def get_instance(cls, testing_mode: bool = False) -> 'Inspector':
         """Get the singleton instance and ensure browser is ready"""
-        instance = cls()
+        instance = cls(testing_mode=testing_mode)
         await instance._ensure_browser_ready()
         return instance
     
@@ -93,12 +89,9 @@ class Inspector(InspectorInterface):
             url: The URL to inspect
             
         Returns:
-            PageResult with all findings across viewports
+            PageResult with all findings from structured exploration
         """
         await self._ensure_browser_ready()
-        
-        result = PageResult(page_url=url)
-        performance_tracker = PerformanceTracker()
         
         context = None
         try:
@@ -109,11 +102,12 @@ class Inspector(InspectorInterface):
             page = await context.new_page()
             page_setup = PageSetup(page, url, self.DEFAULT_TIMEOUTS)
             
-            # Navigate to URL and collect initial metrics
+            # Navigate to URL
             navigation_start = time.time()
             success = await page_setup.navigate_safely()
             
             if not success:
+                result = PageResult(page_url=url)
                 result.findings.append(Bug(
                     id=str(uuid.uuid4()),
                     type="Logic",
@@ -124,41 +118,20 @@ class Inspector(InspectorInterface):
                 ))
                 return result
             
-            result.status = await page_setup.get_response_status()
-            result.timings = await performance_tracker.collect_timings(page)
-            result.timings['navigation_duration'] = (time.time() - navigation_start) * 1000
+            # Get response status
+            status = await page_setup.get_response_status()
             
-            # Set up evidence collection
-            evidence_collector = EvidenceCollector(page, self.output_dir)
+            # Create structured explorer and run comprehensive exploration
+            explorer = StructuredExplorer(self.output_dir)
+            result = await explorer.run_complete_exploration(page, url)
             
-            # Detect outlinks
-            link_detector = LinkDetector(page, url)
-            result.outlinks = await link_detector.collect_outlinks()
-            
-            # Run checks across all viewports
-            for viewport in self.DEFAULT_VIEWPORTS:
-                viewport_key = f"{viewport['width']}x{viewport['height']}"
-                
-                # Set viewport
-                await page.set_viewport_size(viewport['width'], viewport['height'])
-                await asyncio.sleep(0.5)  # Allow layout to settle
-                
-                # Run all checks for this viewport
-                viewport_bugs = await self._run_checks_for_viewport(
-                    page, url, viewport_key, evidence_collector
-                )
-                
-                result.findings.extend(viewport_bugs)
-                
-                # Capture viewport screenshot
-                artifact_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
-                if artifact_path:
-                    result.viewport_artifacts.append(artifact_path)
-            
-            # Collect final trace data
-            result.trace = await self._collect_trace_data(page)
+            # Add navigation timing and status from setup
+            result.status = status
+            if not result.timings.get('navigation_duration'):
+                result.timings['navigation_duration'] = (time.time() - navigation_start) * 1000
             
         except PlaywrightTimeoutError:
+            result = PageResult(page_url=url)
             result.findings.append(Bug(
                 id=str(uuid.uuid4()),
                 type="UI",
@@ -169,6 +142,7 @@ class Inspector(InspectorInterface):
             ))
             
         except Exception as e:
+            result = PageResult(page_url=url)
             result.findings.append(Bug(
                 id=str(uuid.uuid4()),
                 type="Logic", 
@@ -195,51 +169,6 @@ class Inspector(InspectorInterface):
             }
         )
     
-    async def _run_checks_for_viewport(
-        self, 
-        page: Page, 
-        url: str,
-        viewport_key: str,
-        evidence_collector: EvidenceCollector
-    ) -> List[Bug]:
-        """Run all registered checks for a specific viewport"""
-        bugs = []
-        
-        for check in self.checks:
-            try:
-                # Run the check
-                check_bugs = await check.run(page, url, viewport_key)
-                
-                # Enhance bugs with evidence
-                for bug in check_bugs:
-                    if not bug.evidence.screenshot_path and check.requires_screenshot():
-                        screenshot_path = await evidence_collector.capture_bug_screenshot(
-                            bug.id, viewport_key
-                        )
-                        bug.evidence.screenshot_path = screenshot_path
-                    
-                    if not bug.evidence.viewport:
-                        bug.evidence.viewport = viewport_key
-                        
-                bugs.extend(check_bugs)
-                
-            except Exception as e:
-                # Create a bug for the check failure
-                bugs.append(Bug(
-                    id=str(uuid.uuid4()),
-                    type="Logic",
-                    severity="low",
-                    page_url=url,
-                    summary=f"Check '{check.__class__.__name__}' failed: {str(e)}",
-                    evidence=Evidence(viewport=viewport_key)
-                ))
-                
-        return bugs
-    
-    async def _collect_trace_data(self, page: Page) -> List[Dict]:
-        """Collect basic trace data for debugging"""
-        # This is simplified - you could collect more detailed traces
-        return []
     
     async def close(self):
         """Clean up resources"""
@@ -255,7 +184,7 @@ class Inspector(InspectorInterface):
     
     def __del__(self):
         """Cleanup on deletion"""
-        if hasattr(self, 'output_dir') and os.path.exists(self.output_dir):
+        if hasattr(self, 'output_dir') and os.path.exists(self.output_dir) and not self.testing_mode:
             import shutil
             try:
                 shutil.rmtree(self.output_dir)
@@ -264,6 +193,6 @@ class Inspector(InspectorInterface):
 
 
 # Convenience function for getting the singleton
-async def get_inspector() -> Inspector:
+async def get_inspector(testing_mode: bool = False) -> Inspector:
     """Get the singleton Inspector instance"""
-    return await Inspector.get_instance()
+    return await Inspector.get_instance(testing_mode=testing_mode)

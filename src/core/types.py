@@ -7,6 +7,28 @@ BugType  = Literal["UI", "Accessibility", "Logic", "Performance", "Security", "U
 Priority = Literal["P1", "P2", "P3", "P4"]  # P1 = Must fix, P4 = Nice to have
 BugCategory = Literal["Functional", "Visual", "Content", "Navigation", "Form", "Mobile", "Desktop"]
 
+@dataclass
+class ReproStep:
+    """Represents a single step in reproducing a bug"""
+    step_number: int
+    action: str  # "navigate", "click", "fill", "scroll", "wait", etc.
+    target: Optional[str] = None  # CSS selector, URL, or description
+    value: Optional[str] = None   # For fill actions, what was entered
+    description: str = ""         # Human-readable description
+    timestamp: Optional[float] = None
+    viewport: Optional[str] = None
+
+@dataclass
+class ReproStep:
+    """Represents a single step in reproducing a bug"""
+    step_number: int
+    action: str  # "navigate", "click", "fill", "scroll", "wait", etc.
+    target: Optional[str] = None  # CSS selector, URL, or description
+    value: Optional[str] = None   # For fill actions, what was entered
+    description: str = ""         # Human-readable description
+    timestamp: Optional[float] = None
+    viewport: Optional[str] = None
+
 #LAYER BETWEEN THE ORCHESTRATOR AND THE INSPECTOR: pass a url to inspector, inspector returns a PageResult
 
 @dataclass
@@ -15,6 +37,7 @@ class Evidence:
     console_log: Optional[str] = None
     wcag: Optional[List[str]] = None
     viewport: Optional[str] = None  # "1280x800"
+    action_log: Optional[str] = None  # Human-readable action sequence log
 
 @dataclass
 class Bug:

@@ -107,36 +107,46 @@ class EvidenceCollector:
             print(f"Failed to capture element screenshot: {str(e)}")
             return None
     
-    async def save_console_logs(self, bug_id: str, logs: list) -> Optional[str]:
+    def format_console_logs(self, logs: list) -> Optional[str]:
         """
-        Save console logs related to a bug.
+        Format console logs as a readable string.
         
         Args:
-            bug_id: Unique identifier for the bug
             logs: List of console log entries
             
         Returns:
-            Path to the log file, or None if save failed
+            Formatted log string, or None if no logs
         """
+        if not logs:
+            return None
+            
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"console_{bug_id}_{timestamp}.json"
-            filepath = os.path.join(self.logs_dir, filename)
+            formatted_lines = []
             
-            log_data = {
-                'bug_id': bug_id,
-                'timestamp': timestamp,
-                'logs': logs
-            }
+            for log_entry in logs:
+                # Handle different log entry formats
+                if isinstance(log_entry, dict):
+                    level = log_entry.get('level', 'info')
+                    message = log_entry.get('message', str(log_entry))
+                    timestamp = log_entry.get('timestamp', '')
+                    
+                    if timestamp:
+                        line = f"[{timestamp}] {level.upper()}: {message}"
+                    else:
+                        line = f"{level.upper()}: {message}"
+                        
+                elif isinstance(log_entry, str):
+                    line = log_entry
+                else:
+                    line = str(log_entry)
+                
+                formatted_lines.append(line)
             
-            with open(filepath, 'w') as f:
-                json.dump(log_data, f, indent=2, default=str)
-            
-            return filepath
+            return '\n'.join(formatted_lines)
             
         except Exception as e:
-            print(f"Failed to save console logs for bug {bug_id}: {str(e)}")
-            return None
+            print(f"Failed to format console logs: {str(e)}")
+            return f"Error formatting logs: {str(e)}"
     
     async def save_dom_snapshot(self, bug_id: str, selector: Optional[str] = None) -> Optional[str]:
         """
@@ -173,6 +183,33 @@ class EvidenceCollector:
         except Exception as e:
             print(f"Failed to save DOM snapshot for bug {bug_id}: {str(e)}")
             return None
+    
+    async def collect_console_logs(self) -> list:
+        """
+        Collect console logs from the current page.
+        
+        Returns:
+            List of console log entries
+        """
+        try:
+            # Get console logs using JavaScript
+            logs = await self.page.evaluate("""
+            () => {
+                // Try to get logs from console if they've been captured
+                if (window.__mantis_console_logs) {
+                    return window.__mantis_console_logs;
+                }
+                
+                // If no logs captured, return empty array
+                return [];
+            }
+            """)
+            
+            return logs if logs else []
+            
+        except Exception as e:
+            print(f"Failed to collect console logs: {str(e)}")
+            return []
     
     async def collect_network_logs(self) -> list:
         """
