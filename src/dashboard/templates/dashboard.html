@@ -197,31 +197,42 @@
                                         <div class="collapse" id="bug-details-{{ loop.index }}">
                                             <div class="card card-body mx-3 mb-3">
                                                 <div class="row">
-                                                    <!-- Reproduction Steps -->
-                                                    {% if bug.reproduction_steps %}
+                                                    <!-- Left column: Reproduction Steps and Fix Steps -->
                                                     <div class="col-md-4">
-                                                        <h6><i class="fas fa-play-circle"></i> How to Reproduce</h6>
-                                                        <ol class="small">
-                                                            {% for step in bug.reproduction_steps %}
-                                                                <li>{{ step }}</li>
-                                                            {% endfor %}
-                                                        </ol>
+                                                        <div class="mb-3">
+                                                            <h6><i class="fas fa-play-circle"></i> How to Reproduce</h6>
+                                                            {% if bug.reproduction_steps %}
+                                                            <ol class="small">
+                                                                {% for step in bug.reproduction_steps %}
+                                                                    <li>{{ step }}</li>
+                                                                {% endfor %}
+                                                            </ol>
+                                                            {% else %}
+                                                            <p class="small text-muted">
+                                                                <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                                                We were unable to save the reproduction steps.
+                                                            </p>
+                                                            {% endif %}
+                                                        </div>
+                                                        
+                                                        <div class="mb-3">
+                                                            <h6><i class="fas fa-wrench"></i> How to Fix</h6>
+                                                            {% if bug.fix_steps %}
+                                                            <ol class="small">
+                                                                {% for step in bug.fix_steps %}
+                                                                    <li>{{ step }}</li>
+                                                                {% endfor %}
+                                                            </ol>
+                                                            {% else %}
+                                                            <p class="small text-muted">
+                                                                <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                                                We were unable to determine the fix steps.
+                                                            </p>
+                                                            {% endif %}
+                                                        </div>
                                                     </div>
-                                                    {% endif %}
                                                     
-                                                    <!-- Fix Steps -->
-                                                    {% if bug.fix_steps %}
-                                                    <div class="col-md-4">
-                                                        <h6><i class="fas fa-wrench"></i> How to Fix</h6>
-                                                        <ol class="small">
-                                                            {% for step in bug.fix_steps %}
-                                                                <li>{{ step }}</li>
-                                                            {% endfor %}
-                                                        </ol>
-                                                    </div>
-                                                    {% endif %}
-                                                    
-                                                    <!-- Technical Details -->
+                                                    <!-- Middle column: Technical Details -->
                                                     <div class="col-md-4">
                                                         <h6><i class="fas fa-code"></i> Technical Details</h6>
                                                         
@@ -241,17 +252,17 @@
                                                         </div>
                                                         {% endif %}
                                                         
-                                                        <!-- Evidence -->
+                                                        <!-- Evidence text -->
                                                         <div>
                                                             <strong>Evidence:</strong><br>
-                                        {% if bug.evidence.screenshot_path %}
-                                                                <i class="fas fa-camera text-primary"></i> Screenshot available<br>
-                                        {% endif %}
-                                        {% if bug.evidence.console_log %}
+                                                            {% if bug.evidence.console_log %}
                                                                 <i class="fas fa-terminal text-warning"></i> Console log captured<br>
-                                        {% endif %}
-                                                        {% if bug.evidence.viewport %}
+                                                            {% endif %}
+                                                            {% if bug.evidence.viewport %}
                                                                 <i class="fas fa-desktop text-info"></i> Viewport: {{ bug.evidence.viewport }}<br>
+                                                            {% endif %}
+                                                            {% if bug.evidence.screenshot_path %}
+                                                                <i class="fas fa-camera text-primary"></i> Screenshot captured<br>
                                                             {% endif %}
                                                         </div>
                                                         
@@ -267,6 +278,24 @@
                                                                     <span class="badge bg-secondary me-1">{{ tag }}</span>
                                                                 {% endfor %}
                                                             {% endif %}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    
+                                                    <!-- Right column: Screenshot -->
+                                                    <div class="col-md-4">
+                                                        {% if bug.evidence.screenshot_path %}
+                                                        <div class="text-center">
+                                                            <h6><i class="fas fa-camera"></i> Screenshot</h6>
+                                                            <div class="screenshot-container">
+                                                                <img src="/screenshots/{{ bug.evidence.screenshot_path.split('/')[-1] }}" 
+                                                                     alt="Bug screenshot" 
+                                                                     class="bug-screenshot"
+                                                                     style="max-width: 100%; max-height: 250px; cursor: pointer; border: 1px solid #ddd; border-radius: 4px;"
+                                                                     onclick="openScreenshotModal(this.src)"
+                                                                     title="Click to enlarge">
+                                                                <br><small class="text-muted"><i class="fas fa-search-plus text-primary"></i> Click to enlarge</small>
+                                                            </div>
                                                         </div>
                                                         {% endif %}
                                                     </div>
@@ -302,6 +331,14 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Screenshot Modal -->
+<div id="screenshotModal" class="screenshot-modal" onclick="closeScreenshotModal()">
+    <div class="modal-content">
+        <img id="modalImage" src="" alt="Bug screenshot" />
+        <span class="close-btn">&times;</span>
+    </div>
+</div>
 
 {% endblock %}
 

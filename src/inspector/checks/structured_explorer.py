@@ -114,7 +114,8 @@ class StructuredExplorer:
                 baseline_path, 
                 "baseline view", 
                 viewport_key, 
-                page_url
+                page_url,
+                self.action_recorder
             )
             if error:
                 print(f"      ⚠️  Gemini analysis error: {error}")
@@ -263,7 +264,8 @@ class StructuredExplorer:
                         screenshot_path, 
                         "after filling form with long text data", 
                         viewport_key, 
-                        page_url
+                        page_url,
+                        self.action_recorder
                     )
                     if error:
                         print(f"      ⚠️  Gemini analysis error: {error}")
@@ -439,7 +441,8 @@ class StructuredExplorer:
                                 screenshot_path, 
                                 f"after opening '{element_text[:30]}' dropdown menu", 
                                 viewport_key, 
-                                page_url
+                                page_url,
+                                self.action_recorder
                             )
                             if error:
                                 print(f"      ⚠️  Gemini analysis error: {error}")
@@ -589,7 +592,8 @@ class StructuredExplorer:
                                 screenshot_path, 
                                 f"after opening modal dialog", 
                                 viewport_key, 
-                                page_url
+                                page_url,
+                                self.action_recorder
                             )
                             if error:
                                 print(f"      ⚠️  Gemini analysis error: {error}")
@@ -657,7 +661,8 @@ class StructuredExplorer:
                                 screenshot_path, 
                                 f"after expanding accordion section", 
                                 viewport_key, 
-                                page_url
+                                page_url,
+                                self.action_recorder
                             )
                             if error:
                                 print(f"      ⚠️  Gemini analysis error: {error}")
@@ -763,7 +768,8 @@ class StructuredExplorer:
                         baseline_path, 
                         "baseline view", 
                         viewport_key, 
-                        page_url
+                        page_url,
+                        self.action_recorder
                     )
                     if error:
                         print(f"      ⚠️  Gemini analysis error: {error}")

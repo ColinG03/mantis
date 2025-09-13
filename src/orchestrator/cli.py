@@ -143,11 +143,12 @@ Examples:
                 progress_callback=self.progress_callback
             )
             
-            return report, None
+            return report, inspector.output_dir, inspector
             
-        finally:
-            # Clean up inspector
+        except Exception as e:
+            # Clean up inspector on error
             await inspector.close()
+            raise
     
     
     def setup_logging(self, verbose: bool = False) -> None:
@@ -184,7 +185,18 @@ Examples:
                         'console_log': bug.evidence.console_log,
                         'wcag': bug.evidence.wcag,
                         'viewport': bug.evidence.viewport
-                    }
+                    },
+                    'reproduction_steps': bug.reproduction_steps,
+                    'fix_steps': bug.fix_steps,
+                    'affected_elements': bug.affected_elements,
+                    'impact_description': bug.impact_description,
+                    'wcag_guidelines': bug.wcag_guidelines,
+                    'business_impact': bug.business_impact,
+                    'technical_details': bug.technical_details,
+                    'priority': bug.priority,
+                    'category': bug.category,
+                    'estimated_effort': bug.estimated_effort,
+                    'tags': bug.tags
                 }
                 for bug in report.findings
             ],
@@ -240,7 +252,8 @@ Examples:
                 print(f"  ... and {len(report.findings) - 5} more issues")
         
         print(f"\n📊 Page Status:")
-        success_count = sum(1 for page in report.pages if page.get('status') and page['status'] < 400)
+        print(f"Report statuses: {[page.get('status') for page in report.pages]}")
+        success_count = sum(1 for page in report.pages if page.get('status') and isinstance(page['status'], int) and page['status'] < 400)
         failed_count = len(report.pages) - success_count
         
         if success_count > 0:
@@ -267,13 +280,13 @@ Examples:
         if current == total:
             print()
     
-    def launch_dashboard(self, report: CrawlReport) -> None:
+    def launch_dashboard(self, report: CrawlReport, output_dir: Optional[str] = None) -> None:
         """Launch the dashboard with the crawl report."""
         try:
             from dashboard.server import DashboardServer
             
             print(f"\n🌐 Launching dashboard at http://localhost:8080...")
-            dashboard = DashboardServer(port=8080)
+            dashboard = DashboardServer(port=8080, output_dir=output_dir)
             dashboard.load_report(report)
             
             print(f"💡 Dashboard will open automatically in your browser")
@@ -311,7 +324,7 @@ async def main():
         # Execute command
         if args.command == 'run':
             # Run crawl
-            report, dashboard_server = await cli.run_crawl(args)
+            report, output_dir, inspector = await cli.run_crawl(args)
             
             # Save report
             cli.save_report(report, args.output)
@@ -322,11 +335,16 @@ async def main():
             # Handle dashboard
             if getattr(args, 'dashboard', False):
                 # Launch static dashboard with completed report
-                cli.launch_dashboard(report)
-            
-            # Exit with error code if bugs found (for CI/CD) - only if no dashboard
-            if not getattr(args, 'dashboard', False) and report.bugs_total > 0:
-                sys.exit(1)
+                # Don't clean up inspector yet - dashboard needs the screenshot files
+                cli.launch_dashboard(report, output_dir)
+                # Clean up inspector after dashboard closes
+                await inspector.close()
+            else:
+                # No dashboard - clean up inspector immediately
+                await inspector.close()
+                # Exit with error code if bugs found (for CI/CD)
+                if report.bugs_total > 0:
+                    sys.exit(1)
         
     except KeyboardInterrupt:
         print(f"\n⚠️  Crawl interrupted by user")

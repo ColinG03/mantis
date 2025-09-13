@@ -121,7 +121,7 @@ If no significant visual issues are found, return an empty array: []
 
 Analyze the screenshot and respond with JSON only:"""
     
-    def _parse_gemini_response(self, response_text: str, page_url: str, screenshot_path: str, viewport: str) -> List[Bug]:
+    def _parse_gemini_response(self, response_text: str, page_url: str, screenshot_path: str, viewport: str, action_recorder=None) -> List[Bug]:
         """
         Parse Gemini's JSON response into Bug objects.
         
@@ -158,7 +158,11 @@ Analyze the screenshot and respond with JSON only:"""
                     viewport=viewport
                 )
                 
-                # Create Bug object
+                # Create Bug object with reproduction steps if available
+                reproduction_steps = []
+                if action_recorder:
+                    reproduction_steps = [step.description for step in action_recorder.get_steps()]
+                    
                 bug = Bug(
                     id=str(uuid.uuid4()),
                     type="UI",  # All visual issues map to UI type
@@ -166,7 +170,8 @@ Analyze the screenshot and respond with JSON only:"""
                     page_url=page_url,
                     summary=bug_data.get("summary", "Visual layout issue detected"),
                     suggested_fix=bug_data.get("suggested_fix"),
-                    evidence=evidence
+                    evidence=evidence,
+                    reproduction_steps=reproduction_steps
                 )
                 bugs.append(bug)
             
@@ -180,7 +185,7 @@ Analyze the screenshot and respond with JSON only:"""
             print(f"Warning: Error parsing Gemini response: {str(e)}")
             return []
     
-    async def analyze_screenshot(self, screenshot_path: str, context: str, viewport: str, page_url: str) -> Tuple[List[Bug], Optional[str]]:
+    async def analyze_screenshot(self, screenshot_path: str, context: str, viewport: str, page_url: str, action_recorder=None) -> Tuple[List[Bug], Optional[str]]:
         """
         Analyze a screenshot for visual layout issues and severe UX problems.
         
@@ -230,7 +235,7 @@ Analyze the screenshot and respond with JSON only:"""
                     return [], "Gemini API returned empty response"
                 
                 # Parse response into Bug objects
-                bugs = self._parse_gemini_response(response.text, page_url, screenshot_path, viewport)
+                bugs = self._parse_gemini_response(response.text, page_url, screenshot_path, viewport, action_recorder)
                 return bugs, None
                 
             except asyncio.TimeoutError:
@@ -243,7 +248,7 @@ Analyze the screenshot and respond with JSON only:"""
 
 
 # Convenience function for easy integration
-async def analyze_screenshot(screenshot_path: str, context: str, viewport: str, page_url: str) -> Tuple[List[Bug], Optional[str]]:
+async def analyze_screenshot(screenshot_path: str, context: str, viewport: str, page_url: str, action_recorder=None) -> Tuple[List[Bug], Optional[str]]:
     """
     Convenience function to analyze a screenshot without managing GeminiAnalyzer instance.
     
@@ -258,6 +263,6 @@ async def analyze_screenshot(screenshot_path: str, context: str, viewport: str, 
     """
     try:
         analyzer = GeminiAnalyzer()
-        return await analyzer.analyze_screenshot(screenshot_path, context, viewport, page_url)
+        return await analyzer.analyze_screenshot(screenshot_path, context, viewport, page_url, action_recorder)
     except Exception as e:
         return [], f"Failed to initialize Gemini analyzer: {str(e)}"

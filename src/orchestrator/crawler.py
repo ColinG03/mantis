@@ -99,7 +99,7 @@ class Crawler:
                 pages_info.append({
                     "url": current_url,
                     "depth": depth,
-                    "status": "skipped_non_html",
+                    "status": 0, # We mark this as 0 because it's not a HTTP status code, rather just a marker that this was skipped. 0 won't break the check of <400 being successful.
                     "content_type": content_type
                 })
                 self.logger.info(f"Skipping non-HTML content: {current_url} (type: {content_type})")
