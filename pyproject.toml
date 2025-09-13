@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mantis-web-crawler"
+version = "1.0.0"
+description = "Web accessibility and UI bug detection tool"
+readme = "README.md"
+authors = [
+    {name = "Mantis Team"},
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["web-crawler", "accessibility", "ui-testing", "bug-detection", "playwright"]
+requires-python = ">=3.8"
+dependencies = [
+    "playwright>=1.40.0",
+    "flask>=2.0.0",
+    "flask-socketio>=5.0.0",
+    "beautifulsoup4>=4.9.0",
+    "aiohttp>=3.8.0",
+    "asyncio-mqtt>=0.11.0",
+    "requests>=2.25.0",
+    "lxml>=4.6.0",
+    "python-socketio[client]>=5.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-asyncio>=0.18.0",
+    "black>=21.0.0",
+    "flake8>=3.9.0",
+    "mypy>=0.910",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/mantis"
+Repository = "https://github.com/yourusername/mantis"
+"Bug Reports" = "https://github.com/yourusername/mantis/issues"
+
+[project.scripts]
+mantis = "orchestrator.cli:cli_main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dashboard = ["static/css/*.css", "static/js/*.js", "templates/*.html"]

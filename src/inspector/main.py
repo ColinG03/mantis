@@ -8,16 +8,12 @@ from urllib.parse import urljoin, urlparse
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
-try:
-    # Try relative imports first (when imported as package)
-    from ..core.types import Inspector as InspectorInterface, PageResult, Bug
-    from .checks.structured_explorer import StructuredExplorer
-    from .playwright_helpers.page_setup import PageSetup
-except ImportError:
-    # Fall back to absolute imports (when run directly)
-    from core.types import Inspector as InspectorInterface, PageResult, Bug
-    from inspector.checks.structured_explorer import StructuredExplorer
-    from inspector.playwright_helpers.page_setup import PageSetup
+from core.types import Inspector as InspectorInterface, PageResult, Bug, Evidence
+from inspector.utils.evidence import EvidenceCollector
+from inspector.utils.performance import PerformanceTracker
+from inspector.playwright_helpers.page_setup import PageSetup
+from inspector.playwright_helpers.link_detection import LinkDetector
+from inspector.checks.structured_explorer import StructuredExplorer
 
 
 class Inspector(InspectorInterface):

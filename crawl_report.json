@@ -1,0 +1,99 @@
+{
+  "scanned_at": "2025-09-13T06:52:54.838028",
+  "seed_url": "https://www.michael-cronin.com/",
+  "pages_total": 15,
+  "bugs_total": 1,
+  "findings": [
+    {
+      "id": "991da7b7-eae5-4949-9921-6db02b037050",
+      "type": "Logic",
+      "severity": "high",
+      "page_url": "https://www.michael-cronin.com/Michael Cronin Resume.pdf",
+      "summary": "Failed to navigate to page",
+      "suggested_fix": "Check if URL is accessible and valid",
+      "evidence": {
+        "screenshot_path": null,
+        "console_log": null,
+        "wcag": null,
+        "viewport": null
+      }
+    }
+  ],
+  "pages": [
+    {
+      "url": "https://www.michael-cronin.com/",
+      "depth": 0,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/experience",
+      "depth": 1,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/contact",
+      "depth": 1,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/Michael Cronin Resume.pdf",
+      "depth": 1,
+      "status": null
+    },
+    {
+      "url": "https://www.michael-cronin.com/about",
+      "depth": 1,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects",
+      "depth": 1,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/chameleon-ai-content",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/system-controller",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/hurricane-drone-simulation",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/portfolio-website",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/homebase",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/crossword-solver",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/llm-jailbreak-defense",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/crane-controller",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/compile-ai-news",
+      "depth": 2,
+      "status": 200
+    }
+  ]
+}
