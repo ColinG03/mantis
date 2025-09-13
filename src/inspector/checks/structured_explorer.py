@@ -711,7 +711,7 @@ class StructuredExplorer:
             summary=summary,
             suggested_fix=suggested_fix,
             evidence=evidence,
-            reproduction_steps=self.action_recorder.get_steps() if self.action_recorder else []
+            reproduction_steps=[step.description for step in self.action_recorder.get_steps()] if self.action_recorder else []
         )
         return bug
     

@@ -18,17 +18,6 @@ class ReproStep:
     timestamp: Optional[float] = None
     viewport: Optional[str] = None
 
-@dataclass
-class ReproStep:
-    """Represents a single step in reproducing a bug"""
-    step_number: int
-    action: str  # "navigate", "click", "fill", "scroll", "wait", etc.
-    target: Optional[str] = None  # CSS selector, URL, or description
-    value: Optional[str] = None   # For fill actions, what was entered
-    description: str = ""         # Human-readable description
-    timestamp: Optional[float] = None
-    viewport: Optional[str] = None
-
 #LAYER BETWEEN THE ORCHESTRATOR AND THE INSPECTOR: pass a url to inspector, inspector returns a PageResult
 
 @dataclass
