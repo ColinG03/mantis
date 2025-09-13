@@ -715,6 +715,147 @@ class StructuredExplorer:
         )
         return bug
     
+    async def run_visual_only_exploration(self, page: Page, page_url: str) -> PageResult:
+        """
+        Run visual-only exploration (baseline screenshots and Gemini analysis).
+        No interactive testing.
+        """
+        print(f"\n🔍 Starting visual-only exploration of {page_url}")
+        
+        # Initialize result
+        result = PageResult(page_url=page_url)
+        self.bugs = []
+        
+        # Set up evidence collection and performance tracking
+        evidence_collector = EvidenceCollector(page, self.output_dir)
+        performance_tracker = PerformanceTracker()
+        self.action_recorder = ActionRecorder(page_url)
+        
+        # Record initial navigation
+        self.action_recorder.record_navigation(page_url, "Navigate to page for visual testing")
+        
+        try:
+            # Collect initial performance data
+            result.timings = await performance_tracker.collect_timings(page)
+            
+            # Detect outlinks
+            link_detector = LinkDetector(page, page_url)
+            result.outlinks = await link_detector.collect_outlinks()
+            
+            # Visual exploration across viewports
+            for viewport_config in self.DEFAULT_VIEWPORTS:
+                viewport_name = viewport_config["name"]
+                viewport_key = f"{viewport_config['width']}x{viewport_config['height']}"
+                
+                print(f"\n📱 Visual testing {viewport_name} viewport ({viewport_key})")
+                
+                # Set viewport size
+                await page.set_viewport_size({"width": viewport_config['width'], "height": viewport_config['height']})
+                await asyncio.sleep(0.5)  # Allow layout to settle
+                
+                # Capture baseline full-page screenshot and analyze
+                print(f"  📸 Capturing baseline {viewport_name} screenshot")
+                baseline_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
+                
+                # Analyze baseline screenshot with Gemini
+                if baseline_path:
+                    baseline_bugs, error = await analyze_screenshot(
+                        baseline_path, 
+                        "baseline view", 
+                        viewport_key, 
+                        page_url
+                    )
+                    if error:
+                        print(f"      ⚠️  Gemini analysis error: {error}")
+                    else:
+                        self.bugs.extend(baseline_bugs)
+                        if baseline_bugs:
+                            print(f"      🔍 Found {len(baseline_bugs)} visual issues in baseline")
+            
+            # Collect all findings
+            result.findings.extend(self.bugs)
+            
+            # Collect viewport artifacts
+            result.viewport_artifacts = await self._get_viewport_artifacts(evidence_collector)
+            
+        except Exception as e:
+            # Handle exploration errors
+            bug = self._create_bug_with_repro_steps(
+                type="UI",
+                severity="high",
+                page_url=page_url,
+                summary=f"Visual exploration error: {str(e)}",
+                suggested_fix="Review page structure and visual analysis compatibility"
+            )
+            result.findings.append(bug)
+            
+        print(f"✅ Visual exploration complete. Found {len(self.bugs)} potential issues.")
+        return result
+    
+    async def run_interactive_only_exploration(self, page: Page, page_url: str) -> PageResult:
+        """
+        Run interactive-only exploration (forms, dropdowns, modals, accordions).
+        No baseline visual analysis.
+        """
+        print(f"\n🔍 Starting interactive-only exploration of {page_url}")
+        
+        # Initialize result
+        result = PageResult(page_url=page_url)
+        self.bugs = []
+        
+        # Set up evidence collection and performance tracking
+        evidence_collector = EvidenceCollector(page, self.output_dir)
+        performance_tracker = PerformanceTracker()
+        self.action_recorder = ActionRecorder(page_url)
+        
+        # Record initial navigation
+        self.action_recorder.record_navigation(page_url, "Navigate to page for interactive testing")
+        
+        try:
+            # Collect initial performance data
+            result.timings = await performance_tracker.collect_timings(page)
+            
+            # Detect outlinks
+            link_detector = LinkDetector(page, page_url)
+            result.outlinks = await link_detector.collect_outlinks()
+            
+            # Interactive exploration across viewports
+            for viewport_config in self.DEFAULT_VIEWPORTS:
+                viewport_name = viewport_config["name"]
+                viewport_key = f"{viewport_config['width']}x{viewport_config['height']}"
+                
+                print(f"\n📱 Interactive testing {viewport_name} viewport ({viewport_key})")
+                
+                # Set viewport size
+                await page.set_viewport_size({"width": viewport_config['width'], "height": viewport_config['height']})
+                await asyncio.sleep(0.5)  # Allow layout to settle
+                
+                # Test forms with edge cases
+                await self._test_forms_with_edge_cases(page, page_url, viewport_name, viewport_key, evidence_collector)
+                
+                # Test interactive elements
+                await self._test_interactive_elements(page, page_url, viewport_name, viewport_key, evidence_collector)
+            
+            # Collect all findings
+            result.findings.extend(self.bugs)
+            
+            # Collect viewport artifacts
+            result.viewport_artifacts = await self._get_viewport_artifacts(evidence_collector)
+            
+        except Exception as e:
+            # Handle exploration errors
+            bug = self._create_bug_with_repro_steps(
+                type="UI",
+                severity="high",
+                page_url=page_url,
+                summary=f"Interactive exploration error: {str(e)}",
+                suggested_fix="Review page structure and interactive testing compatibility"
+            )
+            result.findings.append(bug)
+            
+        print(f"✅ Interactive exploration complete. Found {len(self.bugs)} potential issues.")
+        return result
+
     async def run(self, page: Page, page_url: str, viewport: str) -> List[Bug]:
         """
         Legacy interface for compatibility with old system.

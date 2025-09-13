@@ -14,6 +14,8 @@ from inspector.utils.performance import PerformanceTracker
 from inspector.playwright_helpers.page_setup import PageSetup
 from inspector.playwright_helpers.link_detection import LinkDetector
 from inspector.checks.structured_explorer import StructuredExplorer
+from inspector.checks.accessibility_scanner import AccessibilityScanner
+from inspector.checks.base_scanner import ScanConfig
 
 
 class Inspector(InspectorInterface):
@@ -34,18 +36,19 @@ class Inspector(InspectorInterface):
         "action_ms": 5000   # 5 seconds for interactions
     }
     
-    def __new__(cls, testing_mode: bool = False) -> 'Inspector':
+    def __new__(cls, testing_mode: bool = False, scan_config: ScanConfig = None) -> 'Inspector':
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
             cls._instance._testing_mode = testing_mode
         return cls._instance
     
-    def __init__(self, testing_mode: bool = False):
+    def __init__(self, testing_mode: bool = False, scan_config: ScanConfig = None):
         if self._initialized:
             return
             
         self.testing_mode = testing_mode
+        self.scan_config = scan_config or ScanConfig.all_scans()
         
         # Set output directory based on testing mode
         if self.testing_mode:
@@ -61,9 +64,9 @@ class Inspector(InspectorInterface):
         self._initialized = True
     
     @classmethod
-    async def get_instance(cls, testing_mode: bool = False) -> 'Inspector':
+    async def get_instance(cls, testing_mode: bool = False, scan_config: ScanConfig = None) -> 'Inspector':
         """Get the singleton instance and ensure browser is ready"""
-        instance = cls(testing_mode=testing_mode)
+        instance = cls(testing_mode=testing_mode, scan_config=scan_config)
         await instance._ensure_browser_ready()
         return instance
     
@@ -78,15 +81,16 @@ class Inspector(InspectorInterface):
                 args=['--no-sandbox', '--disable-dev-shm-usage']  # Better for containers
             )
     
-    async def inspect_page(self, url: str) -> PageResult:
+    async def inspect_page(self, url: str, scan_config: ScanConfig = None) -> PageResult:
         """
         Inspect a single page and return comprehensive results.
         
         Args:
             url: The URL to inspect
+            scan_config: Optional scan configuration (uses instance default if not provided)
             
         Returns:
-            PageResult with all findings from structured exploration
+            PageResult with all findings from configured scans
         """
         await self._ensure_browser_ready()
         
@@ -118,14 +122,25 @@ class Inspector(InspectorInterface):
             # Get response status
             status = await page_setup.get_response_status()
             
-            # Create structured explorer and run comprehensive exploration
-            explorer = StructuredExplorer(self.output_dir)
-            result = await explorer.run_complete_exploration(page, url)
+            # Use provided scan config or instance default
+            config = scan_config or self.scan_config
             
-            # Add navigation timing and status from setup
+            # Initialize result
+            result = PageResult(page_url=url)
             result.status = status
-            if not result.timings.get('navigation_duration'):
-                result.timings['navigation_duration'] = (time.time() - navigation_start) * 1000
+            result.timings['navigation_duration'] = (time.time() - navigation_start) * 1000
+            
+            # Run accessibility scan if enabled
+            if config.accessibility:
+                await self._run_accessibility_scan(page, url, result)
+            
+            # Run UI/visual and interactive scans if enabled
+            if config.ui_visual or config.interactive:
+                await self._run_ui_scans(page, url, result, config)
+            
+            # Collect outlinks (always needed for crawling)
+            link_detector = LinkDetector(page, url)
+            result.outlinks = await link_detector.collect_outlinks()
             
         except PlaywrightTimeoutError:
             result = PageResult(page_url=url)
@@ -154,6 +169,68 @@ class Inspector(InspectorInterface):
                 await context.close()
                 
         return result
+    
+    async def _run_accessibility_scan(self, page: Page, url: str, result: PageResult):
+        """Run accessibility scan and merge results"""
+        try:
+            print(f"🔍 Running accessibility scan for {url}")
+            accessibility_scanner = AccessibilityScanner(self.output_dir)
+            
+            # Run multi-viewport accessibility scan to catch responsive design issues
+            accessibility_result = await accessibility_scanner.scan_all_viewports(page, url)
+            accessibility_result.merge_into_page_result(result)
+            
+        except Exception as e:
+            print(f"❌ Accessibility scan failed: {str(e)}")
+            # Add error bug
+            error_bug = Bug(
+                id=str(uuid.uuid4()),
+                type="Accessibility",
+                severity="medium",
+                page_url=url,
+                summary=f"Accessibility scan error: {str(e)}",
+                suggested_fix="Review accessibility scanner configuration"
+            )
+            result.findings.append(error_bug)
+    
+    async def _run_ui_scans(self, page: Page, url: str, result: PageResult, config: ScanConfig):
+        """Run UI visual and interactive scans"""
+        try:
+            print(f"🔍 Running UI scans for {url}")
+            
+            # Create structured explorer with filtered capabilities
+            explorer = StructuredExplorer(self.output_dir)
+            
+            # Configure explorer based on scan config
+            if config.ui_visual and config.interactive:
+                # Run full exploration
+                explorer_result = await explorer.run_complete_exploration(page, url)
+            elif config.ui_visual:
+                # Run visual-only exploration (baseline screenshots and basic checks)
+                explorer_result = await explorer.run_visual_only_exploration(page, url)
+            elif config.interactive:
+                # Run interactive-only exploration (forms, dropdowns, etc.)
+                explorer_result = await explorer.run_interactive_only_exploration(page, url)
+            else:
+                return  # Nothing to run
+            
+            # Merge results
+            result.findings.extend(explorer_result.findings)
+            result.timings.update(explorer_result.timings)
+            result.viewport_artifacts.extend(explorer_result.viewport_artifacts)
+            
+        except Exception as e:
+            print(f"❌ UI scan failed: {str(e)}")
+            # Add error bug
+            error_bug = Bug(
+                id=str(uuid.uuid4()),
+                type="UI",
+                severity="medium",
+                page_url=url,
+                summary=f"UI scan error: {str(e)}",
+                suggested_fix="Review UI scanner configuration"
+            )
+            result.findings.append(error_bug)
     
     async def _create_context(self) -> BrowserContext:
         """Create a browser context with sensible defaults"""
@@ -190,6 +267,6 @@ class Inspector(InspectorInterface):
 
 
 # Convenience function for getting the singleton
-async def get_inspector(testing_mode: bool = False) -> Inspector:
+async def get_inspector(testing_mode: bool = False, scan_config: ScanConfig = None) -> Inspector:
     """Get the singleton Inspector instance"""
-    return await Inspector.get_instance(testing_mode=testing_mode)
+    return await Inspector.get_instance(testing_mode=testing_mode, scan_config=scan_config)
