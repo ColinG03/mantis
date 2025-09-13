@@ -3,8 +3,10 @@ URL utilities for normalization, deduplication, and path parameter detection.
 """
 
 from urllib.parse import urlparse, urljoin, urlunparse
-from typing import Set, List
+from typing import Set, List, Optional
 import re
+import aiohttp
+import asyncio
 
 
 class URLUtils:
@@ -151,5 +153,138 @@ class URLUtils:
         normalized_url = URLUtils.detect_path_parameters(url)
         if normalized_url in visited:
             return False
+        
+        return True
+    
+    @staticmethod
+    async def check_content_type(url: str, timeout: int = 10) -> Optional[str]:
+        """
+        Check the content type of a URL using a HEAD request.
+        
+        Args:
+            url: URL to check
+            timeout: Request timeout in seconds
+            
+        Returns:
+            Content type string (e.g., "text/html", "application/pdf") or None if failed
+        """
+        try:
+            # Use aiohttp for async HEAD request
+            timeout_config = aiohttp.ClientTimeout(total=timeout)
+            async with aiohttp.ClientSession(timeout=timeout_config) as session:
+                async with session.head(url) as response:
+                    content_type = response.headers.get('content-type', '').lower()
+                    # Extract main content type (remove charset and other parameters)
+                    return content_type.split(';')[0].strip()
+        except Exception as e:
+            print(f"Failed to check content type for {url}: {e}")
+            return None
+    
+    @staticmethod
+    def is_html_content(content_type: Optional[str]) -> bool:
+        """
+        Determine if a content type represents HTML content that should be inspected.
+        
+        Args:
+            content_type: Content type string from HTTP headers
+            
+        Returns:
+            True if content should be inspected as a web page, False otherwise
+        """
+        if not content_type:
+            # If we can't determine content type, assume it might be HTML
+            return True
+        
+        # Content types that should be inspected
+        html_types = {
+            'text/html',
+            'application/xhtml+xml',
+            'text/xml',
+            'application/xml',
+            'text/plain'  # Many servers return text/plain for HTML pages
+        }
+        
+        return content_type in html_types
+    
+    @staticmethod
+    def is_binary_content(content_type: Optional[str]) -> bool:
+        """
+        Determine if a content type represents binary content that shouldn't be inspected.
+        
+        Args:
+            content_type: Content type string from HTTP headers
+            
+        Returns:
+            True if content is binary and shouldn't be inspected, False otherwise
+        """
+        if not content_type:
+            return False
+        
+        # Common binary content types that shouldn't be inspected
+        binary_types = {
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/zip',
+            'application/x-zip-compressed',
+            'application/octet-stream',
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/svg+xml',
+            'video/mp4',
+            'video/mpeg',
+            'video/quicktime',
+            'video/webm',
+            'audio/mpeg',
+            'audio/wav',
+            'audio/ogg',
+            'audio/webm'
+        }
+        
+        return content_type in binary_types
+    
+    @staticmethod
+    def should_inspect_url(url: str, content_type: Optional[str] = None) -> bool:
+        """
+        Determine if a URL should be inspected based on content type.
+        
+        Args:
+            url: URL to check
+            content_type: Optional content type from HEAD request
+            
+        Returns:
+            True if URL should be inspected, False otherwise
+        """
+        # If we have content type information, use it
+        if content_type is not None:
+            # Primary check: exclude known binary content
+            if URLUtils.is_binary_content(content_type):
+                return False
+            # Allow text-based content types through (HTML, plain text, etc.)
+            return True
+        
+        # Fallback to URL extension checking
+        parsed = urlparse(url)
+        path = parsed.path.lower()
+        
+        # Common file extensions that shouldn't be inspected
+        skip_extensions = {
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+            '.zip', '.rar', '.7z', '.tar', '.gz',
+            '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico',
+            '.mp4', '.avi', '.mov', '.webm', '.flv',
+            '.mp3', '.wav', '.ogg', '.flac',
+            '.exe', '.dmg', '.pkg', '.deb', '.rpm'
+        }
+        
+        for ext in skip_extensions:
+            if path.endswith(ext):
+                return False
         
         return True

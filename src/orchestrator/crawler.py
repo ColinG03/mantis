@@ -90,6 +90,21 @@ class Crawler:
             
             self.logger.info(f"Crawling page {crawled_count}/{self.max_pages}: {current_url} (depth {depth})")
             
+            # Check content type before inspection to avoid PDF navigation timeouts
+            content_type = await URLUtils.check_content_type(current_url)
+            should_inspect = URLUtils.should_inspect_url(current_url, content_type)
+            
+            if not should_inspect:
+                # Skip inspection for non-HTML content (PDFs, images, etc.)
+                pages_info.append({
+                    "url": current_url,
+                    "depth": depth,
+                    "status": "skipped_non_html",
+                    "content_type": content_type
+                })
+                self.logger.info(f"Skipping non-HTML content: {current_url} (type: {content_type})")
+                continue
+            
             # Inspect the page
             page_result = await self._inspect_page_with_retry(current_url, inspector)
             

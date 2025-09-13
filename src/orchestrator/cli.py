@@ -12,6 +12,7 @@ from typing import Optional
 
 from core.types import CrawlReport
 from inspector import get_inspector
+from inspector.checks.base_scanner import ScanConfig
 from orchestrator.crawler import Crawler
 
 
@@ -67,6 +68,12 @@ Examples:
             action='store_true',
             help='Launch dashboard after crawl completes'
         )
+        run_parser.add_argument(
+            '--scan-type',
+            choices=['all', 'accessibility', 'ui', 'interactive', 'performance'],
+            default='all',
+            help='Type of scan to perform (default: all)'
+        )
         
         return parser
     
@@ -97,13 +104,30 @@ Examples:
             
         return True
     
+    def _create_scan_config(self, scan_type: str) -> ScanConfig:
+        """Create scan configuration based on CLI argument."""
+        if scan_type == 'accessibility':
+            return ScanConfig.accessibility_only()
+        elif scan_type == 'ui':
+            return ScanConfig.ui_only()
+        elif scan_type == 'interactive':
+            return ScanConfig(accessibility=False, ui_visual=False, performance=False, interactive=True)
+        elif scan_type == 'performance':
+            return ScanConfig(accessibility=False, ui_visual=False, performance=True, interactive=False)
+        else:  # 'all' or any other value
+            return ScanConfig.all_scans()
+    
     async def run_crawl(self, args: argparse.Namespace):
         """Execute the crawl with given arguments."""
         print(f"🔍 Starting crawl of {args.url}")
         print(f"📊 Configuration: max_depth={args.max_depth}, max_pages={args.max_pages}")
+        print(f"🔬 Scan type: {args.scan_type}")
         
-        # Get inspector instance
-        inspector = await get_inspector()
+        # Create scan configuration based on CLI argument
+        scan_config = self._create_scan_config(args.scan_type)
+        
+        # Get inspector instance with scan configuration
+        inspector = await get_inspector(scan_config=scan_config)
         
         # Create crawler
         crawler = Crawler(

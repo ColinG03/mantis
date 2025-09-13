@@ -9,12 +9,14 @@ try:
     from ..utils.evidence import EvidenceCollector
     from ..utils.performance import PerformanceTracker
     from ..utils.action_recorder import ActionRecorder
+    from ..utils.gemini_analyzer import analyze_screenshot
     from ..playwright_helpers.link_detection import LinkDetector
 except ImportError:
     from core.types import Bug, Evidence, PageResult
     from inspector.utils.evidence import EvidenceCollector
     from inspector.utils.performance import PerformanceTracker
     from inspector.utils.action_recorder import ActionRecorder
+    from inspector.utils.gemini_analyzer import analyze_screenshot
     from inspector.playwright_helpers.link_detection import LinkDetector
 
 
@@ -106,10 +108,20 @@ class StructuredExplorer:
         print(f"  📸 Capturing baseline {viewport_name} screenshot")
         baseline_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
         
-        # TODO: VLM Integration Point
-        # This is where we would send the baseline screenshot to Gemini for initial analysis:
-        # baseline_bugs = await self._analyze_with_vlm(baseline_path, "baseline", viewport_name)
-        # self.bugs.extend(baseline_bugs)
+        # Analyze baseline screenshot with Gemini
+        if baseline_path:
+            baseline_bugs, error = await analyze_screenshot(
+                baseline_path, 
+                "baseline view", 
+                viewport_key, 
+                page_url
+            )
+            if error:
+                print(f"      ⚠️  Gemini analysis error: {error}")
+            else:
+                self.bugs.extend(baseline_bugs)
+                if baseline_bugs:
+                    print(f"      🔍 Found {len(baseline_bugs)} visual issues in baseline")
         
         # 2. Find and test forms with edge cases
         await self._test_forms_with_edge_cases(page, page_url, viewport_name, viewport_key, evidence_collector)
@@ -126,18 +138,81 @@ class StructuredExplorer:
             # Find all visible forms AND standalone inputs
             forms_and_inputs_data = await page.evaluate("""
             () => {
+                // Helper function to check if element is truly visible
+                const isElementVisible = (element) => {
+                    if (!element) return false;
+                    
+                    // Check basic visibility
+                    if (element.offsetParent === null) return false;
+                    
+                    // Check computed style
+                    const style = window.getComputedStyle(element);
+                    if (style.display === 'none' || 
+                        style.visibility === 'hidden' || 
+                        style.opacity === '0') return false;
+                    
+                    // Check if element has dimensions
+                    const rect = element.getBoundingClientRect();
+                    if (rect.width === 0 && rect.height === 0) return false;
+                    
+                    // Check if element is positioned off-screen
+                    if (rect.right < 0 || rect.bottom < 0 || 
+                        rect.left > window.innerWidth || rect.top > window.innerHeight) return false;
+                    
+                    return true;
+                };
+                
+                // Helper function to create more specific selectors
+                const createBestSelector = (input, containerIndex) => {
+                    // Priority: ID > name > data attributes > class + type > placeholder (with container context)
+                    if (input.id) {
+                        return `#${input.id}`;
+                    }
+                    
+                    if (input.name) {
+                        return `[name="${input.name}"]`;
+                    }
+                    
+                    // Check for data attributes that could make selector more specific
+                    const dataAttrs = [];
+                    for (const attr of input.attributes) {
+                        if (attr.name.startsWith('data-') && attr.value) {
+                            dataAttrs.push(`[${attr.name}="${attr.value}"]`);
+                        }
+                    }
+                    if (dataAttrs.length > 0) {
+                        return `${input.tagName.toLowerCase()}${dataAttrs.join('')}`;
+                    }
+                    
+                    // Use class + type if available
+                    if (input.className && input.type) {
+                        const firstClass = input.className.split(' ')[0];
+                        return `${input.tagName.toLowerCase()}[type="${input.type}"].${firstClass}`;
+                    }
+                    
+                    // Last resort: placeholder with additional context
+                    if (input.placeholder) {
+                        const tagType = input.type ? `[type="${input.type}"]` : '';
+                        // Add container context to make it more specific
+                        return `${input.tagName.toLowerCase()}${tagType}[placeholder="${input.placeholder}"]:nth-of-type(${containerIndex + 1})`;
+                    }
+                    
+                    return null;
+                };
+                
                 // Find forms with their inputs
                 const forms = Array.from(document.querySelectorAll('form')).map((form, index) => ({
                     type: 'form',
                     index: index,
-                    inputs: Array.from(form.querySelectorAll('input:not([type="hidden"]), textarea, select')).map(input => ({
+                    inputs: Array.from(form.querySelectorAll('input:not([type="hidden"]), textarea, select')).map((input, inputIndex) => ({
                         type: input.type || input.tagName.toLowerCase(),
                         name: input.name,
                         id: input.id,
                         placeholder: input.placeholder,
-                        selector: input.id ? `#${input.id}` : input.name ? `[name="${input.name}"]` : null
-                    })).filter(input => input.selector),
-                    visible: form.offsetParent !== null
+                        selector: createBestSelector(input, inputIndex),
+                        visible: isElementVisible(input)
+                    })).filter(input => input.selector && input.visible),
+                    visible: isElementVisible(form)
                 }));
                 
                 // Find standalone inputs (not inside forms)
@@ -149,9 +224,10 @@ class StructuredExplorer:
                         name: input.name,
                         id: input.id,
                         placeholder: input.placeholder,
-                        selector: input.id ? `#${input.id}` : input.name ? `[name="${input.name}"]` : `input[placeholder="${input.placeholder}"]`
-                    }],
-                    visible: input.offsetParent !== null
+                        selector: createBestSelector(input, index),
+                        visible: isElementVisible(input)
+                    }].filter(input => input.selector && input.visible),
+                    visible: isElementVisible(input)
                 }));
                 
                 return [...forms, ...standaloneInputs];
@@ -182,10 +258,19 @@ class StructuredExplorer:
                 if screenshot_path:
                     print(f"      📸 Form edge case screenshot: {screenshot_path}")
                     
-                    # TODO: VLM Integration Point
-                    # This is where we would send the filled form screenshot to Gemini:
-                    # form_bugs = await self._analyze_with_vlm(screenshot_path, "form_filled", viewport_name, form_context)
-                    # self.bugs.extend(form_bugs)
+                    # Analyze form filled with edge case data
+                    form_bugs, error = await analyze_screenshot(
+                        screenshot_path, 
+                        "after filling form with long text data", 
+                        viewport_key, 
+                        page_url
+                    )
+                    if error:
+                        print(f"      ⚠️  Gemini analysis error: {error}")
+                    else:
+                        self.bugs.extend(form_bugs)
+                        if form_bugs:
+                            print(f"      🔍 Found {len(form_bugs)} visual issues in form {form_index + 1}")
                 
                 # Clear form for next test
                 await self._clear_form_inputs(page, form)
@@ -198,6 +283,26 @@ class StructuredExplorer:
         try:
             selector = input_data['selector']
             input_type = input_data['type'].lower()
+            
+            # First verify the element is visible and unique before attempting to fill
+            locator = page.locator(selector)
+            
+            # Check how many elements match the selector
+            count = await locator.count()
+            if count == 0:
+                print(f"      ⚠️  No elements found for selector: {selector}")
+                return
+            elif count > 1:
+                print(f"      ⚠️  Multiple elements ({count}) found for selector: {selector}, using first visible one")
+                # Use the first visible element
+                locator = locator.first
+            
+            # Wait for element to be visible and ready
+            try:
+                await locator.wait_for(state="visible", timeout=5000)
+            except Exception as e:
+                print(f"      ⚠️  Element not visible within 5s for {selector}: {str(e)}")
+                return
             
             # Edge case data designed to test layout limits
             edge_data = {
@@ -212,7 +317,9 @@ class StructuredExplorer:
             }
             
             value = edge_data.get(input_type, edge_data['text'])
-            await page.fill(selector, value)
+            
+            # Use locator.fill() instead of page.fill() for better error handling
+            await locator.fill(value)
             
             # Record the action
             if self.action_recorder:
@@ -222,7 +329,8 @@ class StructuredExplorer:
             await asyncio.sleep(0.1)  # Brief pause for layout to settle
             
         except Exception as e:
-            print(f"      ⚠️  Could not fill input {input_data.get('name', 'unknown')}: {str(e)}")
+            field_identifier = input_data.get('name') or input_data.get('placeholder') or input_data.get('id') or 'unknown'
+            print(f"      ⚠️  Could not fill input '{field_identifier}': {str(e)}")
     
     async def _clear_form_inputs(self, page: Page, form: Dict[str, Any]):
         """Clear all inputs in a form"""
@@ -230,7 +338,17 @@ class StructuredExplorer:
             try:
                 selector = input_data['selector']
                 if selector:
-                    await page.fill(selector, '')
+                    locator = page.locator(selector)
+                    
+                    # Only clear if element is visible and available
+                    if await locator.count() > 0:
+                        # Use first visible element if multiple exist
+                        if await locator.count() > 1:
+                            locator = locator.first
+                        
+                        # Only clear if element is visible
+                        if await locator.is_visible():
+                            await locator.fill('')
             except Exception:
                 continue  # Ignore individual clear failures
     
@@ -241,18 +359,18 @@ class StructuredExplorer:
         
         try:
             # Test dropdowns
-            await self._test_dropdowns(page, viewport_name, viewport_key, evidence_collector)
+            await self._test_dropdowns(page, page_url, viewport_name, viewport_key, evidence_collector)
             
             # Test modals
-            await self._test_modals(page, viewport_name, viewport_key, evidence_collector)
+            await self._test_modals(page, page_url, viewport_name, viewport_key, evidence_collector)
             
             # Test accordions
-            await self._test_accordions(page, viewport_name, viewport_key, evidence_collector)
+            await self._test_accordions(page, page_url, viewport_name, viewport_key, evidence_collector)
             
         except Exception as e:
             print(f"    ❌ Interactive testing error: {str(e)}")
     
-    async def _test_dropdowns(self, page: Page, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
+    async def _test_dropdowns(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
         """Test dropdown menus by opening them and capturing screenshots"""
         
         # Find dropdown triggers (including modern ARIA patterns)
@@ -273,18 +391,27 @@ class StructuredExplorer:
         dropdown_count = 0
         for selector in dropdown_selectors:
             try:
-                elements = await page.query_selector_all(selector)
-                for i, element in enumerate(elements[:3]):  # Test first 3 dropdowns per selector
-                    if await element.is_visible():
+                # Use locators instead of query_selector_all for better error handling
+                locator = page.locator(selector)
+                count = await locator.count()
+                
+                for i in range(min(count, 3)):  # Test first 3 dropdowns per selector
+                    element_locator = locator.nth(i)
+                    
+                    if await element_locator.is_visible():
                         dropdown_count += 1
-                        element_text = await element.text_content()
-                        print(f"    📋 Testing dropdown {dropdown_count}: '{element_text[:30]}'")
+                        element_text = await element_locator.text_content()
+                        print(f"    📋 Testing dropdown {dropdown_count}: '{element_text[:30] if element_text else 'unknown'}'")
                         
                         # Get initial state for ARIA elements
-                        initial_aria_expanded = await element.get_attribute('aria-expanded')
+                        initial_aria_expanded = await element_locator.get_attribute('aria-expanded')
                         
-                        # Open dropdown
-                        await element.click()
+                        # Try to click with multiple strategies
+                        click_success = await self._safe_click_element(page, element_locator, selector)
+                        
+                        if not click_success:
+                            print(f"      ⚠️  Could not click dropdown {dropdown_count}, skipping")
+                            continue
                         
                         # Record the action
                         if self.action_recorder:
@@ -293,7 +420,7 @@ class StructuredExplorer:
                         await asyncio.sleep(0.5)  # Longer wait for mobile animations
                         
                         # Check if state actually changed (for ARIA elements)
-                        new_aria_expanded = await element.get_attribute('aria-expanded')
+                        new_aria_expanded = await element_locator.get_attribute('aria-expanded')
                         state_changed = initial_aria_expanded != new_aria_expanded
                         
                         if state_changed:
@@ -306,18 +433,31 @@ class StructuredExplorer:
                         if screenshot_path:
                             print(f"      📸 Dropdown open screenshot: {screenshot_path}")
                             
-                            # TODO: VLM Integration Point
-                            # This is where we would send the dropdown screenshot to Gemini:
-                            # dropdown_bugs = await self._analyze_with_vlm(screenshot_path, "dropdown_open", viewport_name)
-                            # self.bugs.extend(dropdown_bugs)
+                            # Analyze dropdown open state
+                            element_text = element_text or "unknown"
+                            dropdown_bugs, error = await analyze_screenshot(
+                                screenshot_path, 
+                                f"after opening '{element_text[:30]}' dropdown menu", 
+                                viewport_key, 
+                                page_url
+                            )
+                            if error:
+                                print(f"      ⚠️  Gemini analysis error: {error}")
+                            else:
+                                self.bugs.extend(dropdown_bugs)
+                                if dropdown_bugs:
+                                    print(f"      🔍 Found {len(dropdown_bugs)} visual issues in dropdown")
                         
                         # Close dropdown (try multiple methods)
                         if state_changed:
                             # For ARIA dropdowns, click the same element again
-                            await element.click()
+                            await self._safe_click_element(page, element_locator, selector)
                         else:
-                            # For traditional dropdowns, click body
-                            await page.click('body')
+                            # For traditional dropdowns, click body or press escape
+                            try:
+                                await page.click('body', timeout=1000)
+                            except:
+                                await page.keyboard.press('Escape')
                         await asyncio.sleep(0.3)
                         
             except Exception as e:
@@ -327,7 +467,91 @@ class StructuredExplorer:
         if dropdown_count == 0:
             print(f"    📋 No dropdowns found in {viewport_name}")
     
-    async def _test_modals(self, page: Page, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
+    async def _safe_click_element(self, page: Page, locator, selector: str) -> bool:
+        """Safely click an element with multiple fallback strategies"""
+        try:
+            # Strategy 1: Normal click with short timeout
+            await locator.click(timeout=3000)
+            return True
+            
+        except Exception as e:
+            if "intercepts pointer events" in str(e):
+                print(f"      🔄 Pointer intercepted, trying alternative click methods...")
+                
+                # Strategy 2: Dismiss any overlays first
+                await self._dismiss_overlays(page)
+                
+                try:
+                    # Try normal click again after dismissing overlays
+                    await locator.click(timeout=2000)
+                    return True
+                except:
+                    pass
+                
+                # Strategy 3: Force click (ignores intercepting elements)
+                try:
+                    await locator.click(force=True, timeout=2000)
+                    print(f"      ✅ Force click succeeded")
+                    return True
+                except Exception as force_e:
+                    print(f"      ⚠️  Force click failed: {str(force_e)}")
+                
+                # Strategy 4: Scroll into view and try again
+                try:
+                    await locator.scroll_into_view_if_needed()
+                    await asyncio.sleep(0.2)
+                    await locator.click(timeout=2000)
+                    print(f"      ✅ Click after scroll succeeded")
+                    return True
+                except Exception as scroll_e:
+                    print(f"      ⚠️  Click after scroll failed: {str(scroll_e)}")
+                
+                # Strategy 5: Use JavaScript click as last resort
+                try:
+                    await locator.evaluate("element => element.click()")
+                    print(f"      ✅ JavaScript click succeeded")
+                    return True
+                except Exception as js_e:
+                    print(f"      ⚠️  JavaScript click failed: {str(js_e)}")
+            
+            else:
+                print(f"      ⚠️  Click failed: {str(e)}")
+            
+            return False
+    
+    async def _dismiss_overlays(self, page: Page):
+        """Try to dismiss common overlays that might block clicks"""
+        try:
+            # Common overlay dismissal strategies
+            overlay_selectors = [
+                '.modal-backdrop',
+                '.overlay',
+                '.loading-overlay',
+                '[data-dismiss="modal"]',
+                '[data-bs-dismiss="modal"]',
+                '.close',
+                'button:has-text("Close")',
+                'button:has-text("×")'
+            ]
+            
+            for overlay_selector in overlay_selectors:
+                try:
+                    overlay_locator = page.locator(overlay_selector)
+                    if await overlay_locator.count() > 0 and await overlay_locator.first.is_visible():
+                        await overlay_locator.first.click(timeout=1000)
+                        await asyncio.sleep(0.2)
+                        break
+                except:
+                    continue
+            
+            # Try pressing Escape to dismiss any modal/overlay
+            await page.keyboard.press('Escape')
+            await asyncio.sleep(0.2)
+            
+        except Exception:
+            pass  # Ignore overlay dismissal failures
+    
+    async def _test_modals(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
         """Test modal triggers by opening them and capturing screenshots"""
         
         # Find modal triggers
@@ -360,10 +584,19 @@ class StructuredExplorer:
                         if screenshot_path:
                             print(f"      📸 Modal open screenshot: {screenshot_path}")
                             
-                            # TODO: VLM Integration Point  
-                            # This is where we would send the modal screenshot to Gemini:
-                            # modal_bugs = await self._analyze_with_vlm(screenshot_path, "modal_open", viewport_name)
-                            # self.bugs.extend(modal_bugs)
+                            # Analyze modal open state
+                            modal_bugs, error = await analyze_screenshot(
+                                screenshot_path, 
+                                f"after opening modal dialog", 
+                                viewport_key, 
+                                page_url
+                            )
+                            if error:
+                                print(f"      ⚠️  Gemini analysis error: {error}")
+                            else:
+                                self.bugs.extend(modal_bugs)
+                                if modal_bugs:
+                                    print(f"      🔍 Found {len(modal_bugs)} visual issues in modal")
                         
                         # Close modal with escape key
                         await page.keyboard.press('Escape')
@@ -387,7 +620,7 @@ class StructuredExplorer:
         if modal_count == 0:
             print(f"    🔲 No modals found in {viewport_name}")
     
-    async def _test_accordions(self, page: Page, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
+    async def _test_accordions(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
         """Test accordion/collapsible elements by toggling them and capturing screenshots"""
         
         # Find accordion triggers
@@ -419,10 +652,19 @@ class StructuredExplorer:
                         if screenshot_path:
                             print(f"      📸 Accordion expanded screenshot: {screenshot_path}")
                             
-                            # TODO: VLM Integration Point
-                            # This is where we would send the accordion screenshot to Gemini:
-                            # accordion_bugs = await self._analyze_with_vlm(screenshot_path, "accordion_expanded", viewport_name)
-                            # self.bugs.extend(accordion_bugs)
+                            # Analyze accordion expanded state
+                            accordion_bugs, error = await analyze_screenshot(
+                                screenshot_path, 
+                                f"after expanding accordion section", 
+                                viewport_key, 
+                                page_url
+                            )
+                            if error:
+                                print(f"      ⚠️  Gemini analysis error: {error}")
+                            else:
+                                self.bugs.extend(accordion_bugs)
+                                if accordion_bugs:
+                                    print(f"      🔍 Found {len(accordion_bugs)} visual issues in accordion")
                         
                         # Close accordion
                         await element.click()
@@ -469,10 +711,151 @@ class StructuredExplorer:
             summary=summary,
             suggested_fix=suggested_fix,
             evidence=evidence,
-            reproduction_steps=self.action_recorder.get_steps() if self.action_recorder else []
+            reproduction_steps=[step.description for step in self.action_recorder.get_steps()] if self.action_recorder else []
         )
         return bug
     
+    async def run_visual_only_exploration(self, page: Page, page_url: str) -> PageResult:
+        """
+        Run visual-only exploration (baseline screenshots and Gemini analysis).
+        No interactive testing.
+        """
+        print(f"\n🔍 Starting visual-only exploration of {page_url}")
+        
+        # Initialize result
+        result = PageResult(page_url=page_url)
+        self.bugs = []
+        
+        # Set up evidence collection and performance tracking
+        evidence_collector = EvidenceCollector(page, self.output_dir)
+        performance_tracker = PerformanceTracker()
+        self.action_recorder = ActionRecorder(page_url)
+        
+        # Record initial navigation
+        self.action_recorder.record_navigation(page_url, "Navigate to page for visual testing")
+        
+        try:
+            # Collect initial performance data
+            result.timings = await performance_tracker.collect_timings(page)
+            
+            # Detect outlinks
+            link_detector = LinkDetector(page, page_url)
+            result.outlinks = await link_detector.collect_outlinks()
+            
+            # Visual exploration across viewports
+            for viewport_config in self.DEFAULT_VIEWPORTS:
+                viewport_name = viewport_config["name"]
+                viewport_key = f"{viewport_config['width']}x{viewport_config['height']}"
+                
+                print(f"\n📱 Visual testing {viewport_name} viewport ({viewport_key})")
+                
+                # Set viewport size
+                await page.set_viewport_size({"width": viewport_config['width'], "height": viewport_config['height']})
+                await asyncio.sleep(0.5)  # Allow layout to settle
+                
+                # Capture baseline full-page screenshot and analyze
+                print(f"  📸 Capturing baseline {viewport_name} screenshot")
+                baseline_path = await evidence_collector.capture_viewport_screenshot(viewport_key)
+                
+                # Analyze baseline screenshot with Gemini
+                if baseline_path:
+                    baseline_bugs, error = await analyze_screenshot(
+                        baseline_path, 
+                        "baseline view", 
+                        viewport_key, 
+                        page_url
+                    )
+                    if error:
+                        print(f"      ⚠️  Gemini analysis error: {error}")
+                    else:
+                        self.bugs.extend(baseline_bugs)
+                        if baseline_bugs:
+                            print(f"      🔍 Found {len(baseline_bugs)} visual issues in baseline")
+            
+            # Collect all findings
+            result.findings.extend(self.bugs)
+            
+            # Collect viewport artifacts
+            result.viewport_artifacts = await self._get_viewport_artifacts(evidence_collector)
+            
+        except Exception as e:
+            # Handle exploration errors
+            bug = self._create_bug_with_repro_steps(
+                type="UI",
+                severity="high",
+                page_url=page_url,
+                summary=f"Visual exploration error: {str(e)}",
+                suggested_fix="Review page structure and visual analysis compatibility"
+            )
+            result.findings.append(bug)
+            
+        print(f"✅ Visual exploration complete. Found {len(self.bugs)} potential issues.")
+        return result
+    
+    async def run_interactive_only_exploration(self, page: Page, page_url: str) -> PageResult:
+        """
+        Run interactive-only exploration (forms, dropdowns, modals, accordions).
+        No baseline visual analysis.
+        """
+        print(f"\n🔍 Starting interactive-only exploration of {page_url}")
+        
+        # Initialize result
+        result = PageResult(page_url=page_url)
+        self.bugs = []
+        
+        # Set up evidence collection and performance tracking
+        evidence_collector = EvidenceCollector(page, self.output_dir)
+        performance_tracker = PerformanceTracker()
+        self.action_recorder = ActionRecorder(page_url)
+        
+        # Record initial navigation
+        self.action_recorder.record_navigation(page_url, "Navigate to page for interactive testing")
+        
+        try:
+            # Collect initial performance data
+            result.timings = await performance_tracker.collect_timings(page)
+            
+            # Detect outlinks
+            link_detector = LinkDetector(page, page_url)
+            result.outlinks = await link_detector.collect_outlinks()
+            
+            # Interactive exploration across viewports
+            for viewport_config in self.DEFAULT_VIEWPORTS:
+                viewport_name = viewport_config["name"]
+                viewport_key = f"{viewport_config['width']}x{viewport_config['height']}"
+                
+                print(f"\n📱 Interactive testing {viewport_name} viewport ({viewport_key})")
+                
+                # Set viewport size
+                await page.set_viewport_size({"width": viewport_config['width'], "height": viewport_config['height']})
+                await asyncio.sleep(0.5)  # Allow layout to settle
+                
+                # Test forms with edge cases
+                await self._test_forms_with_edge_cases(page, page_url, viewport_name, viewport_key, evidence_collector)
+                
+                # Test interactive elements
+                await self._test_interactive_elements(page, page_url, viewport_name, viewport_key, evidence_collector)
+            
+            # Collect all findings
+            result.findings.extend(self.bugs)
+            
+            # Collect viewport artifacts
+            result.viewport_artifacts = await self._get_viewport_artifacts(evidence_collector)
+            
+        except Exception as e:
+            # Handle exploration errors
+            bug = self._create_bug_with_repro_steps(
+                type="UI",
+                severity="high",
+                page_url=page_url,
+                summary=f"Interactive exploration error: {str(e)}",
+                suggested_fix="Review page structure and interactive testing compatibility"
+            )
+            result.findings.append(bug)
+            
+        print(f"✅ Interactive exploration complete. Found {len(self.bugs)} potential issues.")
+        return result
+
     async def run(self, page: Page, page_url: str, viewport: str) -> List[Bug]:
         """
         Legacy interface for compatibility with old system.
