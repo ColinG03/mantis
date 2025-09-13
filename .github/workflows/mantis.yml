@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # ---------- EDIT THESE DEFAULTS ----------
-      MANTIS_URL: ${{ inputs.url || 'https://example.com' }}
+      MANTIS_URL: ${{ inputs.url || 'https://michael-cronin.com' }}
       # Example if you use PR-based previews:
       # MANTIS_URL: https://preview-${{ github.event.pull_request.number }}.yourdomain.com
       MANTIS_MAX_PAGES: "25"
