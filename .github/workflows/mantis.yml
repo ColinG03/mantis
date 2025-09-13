@@ -51,8 +51,8 @@ jobs:
           python -m pip install --upgrade pip
           # Install mantis from the current repository
           pip install -e .
-          # Install Playwright separately for browser support
-          pip install playwright
+          # Install Playwright and accessibility testing dependencies
+          pip install playwright axe-playwright-python
 
       - name: 🎭 Install Playwright (Chromium)
         run: |
