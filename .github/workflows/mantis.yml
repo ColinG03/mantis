@@ -29,6 +29,8 @@ jobs:
       MANTIS_JSON: "report.json"     # written by --output
       # Fail the workflow if any "high"/"critical" are found (set to "none" to disable):
       MANTIS_FAIL_ON: "none"         # "none" | "high" | "critical"
+      # API Keys
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
       # ----------------------------------------
     steps:
       - name: 🧾 Checkout
