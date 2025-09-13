@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 from playwright.async_api import Page
 
-from ...core.types import Bug
+from core.types import Bug
 
 
 class BaseCheck(ABC):

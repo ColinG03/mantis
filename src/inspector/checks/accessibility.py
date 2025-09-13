@@ -2,8 +2,8 @@ import uuid
 from typing import List
 from playwright.async_api import Page
 
-from ...core.types import Bug, Evidence
-from .base import StaticCheck
+from core.types import Bug, Evidence
+from inspector.checks.base import StaticCheck
 
 
 class AccessibilityCheck(StaticCheck):
@@ -75,7 +75,29 @@ class AccessibilityCheck(StaticCheck):
                         page_url=page_url,
                         summary=f"Image missing alt text: {img_data['src'][:100]}...",
                         suggested_fix="Add descriptive alt text to the image element",
-                        evidence=Evidence(wcag=["1.1.1"])
+                        evidence=Evidence(wcag=["1.1.1"]),
+                        reproduction_steps=[
+                            "1. Navigate to the page with a screen reader enabled",
+                            "2. Use Tab key or arrow keys to navigate to the image",
+                            "3. Notice that the screen reader doesn't announce descriptive text for the image",
+                            "4. The image is either not announced or announced with only the filename"
+                        ],
+                        fix_steps=[
+                            "1. Locate the image element in the HTML",
+                            f"2. Add an alt attribute: <img src=\"...\" alt=\"descriptive text\">",
+                            "3. Write alt text that describes the purpose/content of the image",
+                            "4. For decorative images, use alt=\"\" (empty alt text)",
+                            "5. Test with a screen reader to verify the fix"
+                        ],
+                        affected_elements=[f"img[src*='{img_data['src'].split('/')[-1]}']"],
+                        impact_description="Users with visual impairments cannot understand the content or purpose of the image",
+                        wcag_guidelines=["1.1.1"],
+                        business_impact="Excludes users with disabilities, potential legal compliance issues",
+                        technical_details=f"Image source: {img_data['src']}, Selector: {img_data['selector']}",
+                        priority="P2",  # Important for accessibility compliance
+                        category="Content",
+                        estimated_effort="15 minutes",
+                        tags=["accessibility", "images", "screen-reader", "alt-text"]
                     ))
                     
         except Exception as e:
@@ -115,6 +137,7 @@ class AccessibilityCheck(StaticCheck):
             """)
             
             for input_data in unlabeled_inputs:
+                input_identifier = input_data['name'] or input_data['id'] or input_data['type']
                 bugs.append(Bug(
                     id=str(uuid.uuid4()),
                     type="Accessibility",
@@ -122,7 +145,35 @@ class AccessibilityCheck(StaticCheck):
                     page_url=page_url,
                     summary=f"Form input missing label: {input_data['type']} input",
                     suggested_fix="Add a <label> element or aria-label attribute to the input",
-                    evidence=Evidence(wcag=["3.3.2"])
+                    evidence=Evidence(wcag=["3.3.2"]),
+                    reproduction_steps=[
+                        "1. Navigate to the form using keyboard only (Tab key)",
+                        "2. Try to understand what each form field is for",
+                        "3. Notice that the input field has no visible label or description",
+                        "4. Screen reader users will not know what to enter in this field"
+                    ],
+                    fix_steps=[
+                        "1. Add a <label> element associated with the input",
+                        "   Example: <label for='email'>Email Address</label><input id='email' type='email'>",
+                        "2. Alternative: Add aria-label attribute to the input",
+                        "   Example: <input type='email' aria-label='Email Address'>",
+                        "3. Alternative: Use aria-labelledby to reference another element",
+                        "4. Ensure the label text clearly describes the required input",
+                        "5. Test with screen reader to confirm accessibility"
+                    ],
+                    affected_elements=[
+                        f"input[type='{input_data['type']}']" + 
+                        (f"[name='{input_data['name']}']" if input_data['name'] else "") +
+                        (f"[id='{input_data['id']}']" if input_data['id'] else "")
+                    ],
+                    impact_description="Users with visual impairments or cognitive disabilities cannot understand what information to enter",
+                    wcag_guidelines=["3.3.2", "1.3.1", "4.1.2"],
+                    business_impact="Form abandonment, lost conversions, accessibility compliance violations",
+                    technical_details=f"Input type: {input_data['type']}, Name: {input_data['name']}, ID: {input_data['id']}, Placeholder: {input_data['placeholder']}",
+                    priority="P1",  # Critical for form usability
+                    category="Form",
+                    estimated_effort="30 minutes",
+                    tags=["accessibility", "forms", "labels", "screen-reader", "compliance"]
                 ))
                 
         except Exception as e:
@@ -172,6 +223,36 @@ class AccessibilityCheck(StaticCheck):
             
             for issue in heading_issues:
                 severity = "high" if issue['type'] == 'multiple_h1' else "medium"
+                
+                # Customize steps based on issue type
+                if issue['type'] == 'multiple_h1':
+                    fix_steps = [
+                        "1. Identify all h1 elements on the page",
+                        "2. Keep only one h1 element (usually the main page title)",
+                        "3. Convert other h1 elements to h2, h3, etc. based on their hierarchy",
+                        "4. Ensure the remaining h1 represents the main topic of the page"
+                    ]
+                    impact = "Confuses screen reader users about page structure and main content"
+                    business_impact = "Poor SEO, reduced accessibility, confusing navigation"
+                elif issue['type'] == 'no_headings':
+                    fix_steps = [
+                        "1. Add heading elements (h1, h2, h3, etc.) to structure the content",
+                        "2. Start with an h1 for the main page title",
+                        "3. Use h2 for major sections, h3 for subsections, etc.",
+                        "4. Ensure headings describe the content that follows"
+                    ]
+                    impact = "Users cannot quickly navigate or understand page structure"
+                    business_impact = "Poor user experience, reduced accessibility, SEO penalties"
+                else:  # skipped_level
+                    fix_steps = [
+                        "1. Review the heading hierarchy on the page",
+                        "2. Ensure headings follow logical order (h1 → h2 → h3, not h1 → h3)",
+                        "3. Don't skip heading levels for styling - use CSS instead",
+                        "4. Restructure content hierarchy if needed"
+                    ]
+                    impact = "Disrupts logical content flow for assistive technology users"
+                    business_impact = "Reduced accessibility, potential compliance issues"
+                
                 bugs.append(Bug(
                     id=str(uuid.uuid4()),
                     type="Accessibility",
@@ -179,7 +260,19 @@ class AccessibilityCheck(StaticCheck):
                     page_url=page_url,
                     summary=f"Heading structure issue: {issue['message']}",
                     suggested_fix="Ensure proper heading hierarchy (h1 > h2 > h3, etc.)",
-                    evidence=Evidence(wcag=["1.3.1"])
+                    evidence=Evidence(wcag=["1.3.1"]),
+                    reproduction_steps=[
+                        "1. Use a screen reader or browser extension to view heading structure",
+                        "2. Navigate through headings using screen reader shortcuts (H key in NVDA/JAWS)",
+                        "3. Notice the logical hierarchy is broken or confusing",
+                        "4. Try to understand page structure from headings alone"
+                    ],
+                    fix_steps=fix_steps,
+                    affected_elements=["h1", "h2", "h3", "h4", "h5", "h6"],
+                    impact_description=impact,
+                    wcag_guidelines=["1.3.1", "2.4.6"],
+                    business_impact=business_impact,
+                    technical_details=f"Issue type: {issue['type']}, Message: {issue['message']}"
                 ))
                 
         except Exception as e:

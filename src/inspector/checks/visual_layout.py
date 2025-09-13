@@ -2,8 +2,8 @@ import uuid
 from typing import List
 from playwright.async_api import Page
 
-from ...core.types import Bug, Evidence
-from .base import StaticCheck
+from core.types import Bug, Evidence
+from inspector.checks.base import StaticCheck
 
 
 class VisualLayoutCheck(StaticCheck):
@@ -102,7 +102,26 @@ class VisualLayoutCheck(StaticCheck):
                     severity="medium",
                     page_url=page_url,
                     summary=f"Overlapping elements detected: {overlap['element1']} and {overlap['element2']}",
-                    suggested_fix="Check CSS positioning and z-index values to resolve overlap"
+                    suggested_fix="Check CSS positioning and z-index values to resolve overlap",
+                    reproduction_steps=[
+                        "1. Navigate to the page in a browser",
+                        "2. Look for elements that appear to be on top of each other",
+                        "3. Check if content is hidden or partially obscured",
+                        "4. Try different viewport sizes to see if overlap persists"
+                    ],
+                    fix_steps=[
+                        "1. Inspect the overlapping elements using browser dev tools",
+                        "2. Check the CSS positioning (relative, absolute, fixed)",
+                        "3. Adjust z-index values to control layering",
+                        "4. Modify margins, padding, or positioning to prevent overlap",
+                        "5. Test across different screen sizes and browsers",
+                        "6. Consider using CSS Grid or Flexbox for better layout control"
+                    ],
+                    affected_elements=[overlap['element1'], overlap['element2']],
+                    impact_description="Content may be hidden or difficult to read, affecting user experience",
+                    wcag_guidelines=["1.4.3", "1.4.11"],
+                    business_impact="Poor user experience, potential loss of important content visibility",
+                    technical_details=f"Elements at position {overlap['position']}: {overlap['element1']} overlaps {overlap['element2']}"
                 ))
                 
         except Exception as e:
@@ -136,7 +155,26 @@ class VisualLayoutCheck(StaticCheck):
                         severity="medium",
                         page_url=page_url,
                         summary=f"Broken image: {img['src'][:100]}...",
-                        suggested_fix="Check image URL and ensure the image file exists and is accessible"
+                        suggested_fix="Check image URL and ensure the image file exists and is accessible",
+                        reproduction_steps=[
+                            "1. Navigate to the page in a web browser",
+                            "2. Look for images that show a broken image icon or placeholder",
+                            "3. Check browser developer tools Network tab for failed image requests",
+                            "4. Verify the broken image is visible in the UI"
+                        ],
+                        fix_steps=[
+                            "1. Verify the image file exists at the specified URL",
+                            "2. Check if the image URL is correct and accessible",
+                            "3. Ensure proper file permissions on the server",
+                            "4. Consider adding error handling with fallback images",
+                            "5. Add proper alt text for accessibility",
+                            f"6. Current image source: {img['src']}"
+                        ],
+                        affected_elements=[f"img[src*='{img['src'].split('/')[-1] if '/' in img['src'] else img['src']}']"],
+                        impact_description="Broken images create a poor user experience and unprofessional appearance",
+                        wcag_guidelines=["1.1.1"] if not img['alt'] else [],
+                        business_impact="Reduced user trust, poor brand perception, potential SEO impact",
+                        technical_details=f"Image source: {img['src']}, Alt text: '{img['alt']}', Complete: false, Natural width: 0"
                     ))
                     
         except Exception as e:

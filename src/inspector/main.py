@@ -8,14 +8,14 @@ from urllib.parse import urljoin, urlparse
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
 
-from ..core.types import Inspector as InspectorInterface, PageResult, Bug, Evidence
-from .checks.base import BaseCheck
-from .checks.accessibility import AccessibilityCheck
-from .checks.visual_layout import VisualLayoutCheck
-from .utils.evidence import EvidenceCollector
-from .utils.performance import PerformanceTracker
-from .playwright_helpers.page_setup import PageSetup
-from .playwright_helpers.link_detection import LinkDetector
+from core.types import Inspector as InspectorInterface, PageResult, Bug, Evidence
+from inspector.checks.base import BaseCheck
+from inspector.checks.accessibility import AccessibilityCheck
+from inspector.checks.visual_layout import VisualLayoutCheck
+from inspector.utils.evidence import EvidenceCollector
+from inspector.utils.performance import PerformanceTracker
+from inspector.playwright_helpers.page_setup import PageSetup
+from inspector.playwright_helpers.link_detection import LinkDetector
 
 
 class Inspector(InspectorInterface):
