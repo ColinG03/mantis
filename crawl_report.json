@@ -1,212 +1,16 @@
 {
-  "scanned_at": "2025-09-13T06:30:14.968460",
+  "scanned_at": "2025-09-13T06:52:54.838028",
   "seed_url": "https://www.michael-cronin.com/",
   "pages_total": 15,
-  "bugs_total": 15,
+  "bugs_total": 1,
   "findings": [
     {
-      "id": "bc3fbb2b-3d93-4626-88d7-02d56c3fce54",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "2d575111-baaa-4bbd-a9ac-7c98adcb3932",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "a692e1bc-c258-42dc-993a-a2cb2afb1a30",
+      "id": "991da7b7-eae5-4949-9921-6db02b037050",
       "type": "Logic",
       "severity": "high",
       "page_url": "https://www.michael-cronin.com/Michael Cronin Resume.pdf",
       "summary": "Failed to navigate to page",
       "suggested_fix": "Check if URL is accessible and valid",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "4964b1f6-96b5-4b19-937c-1fd1a66b6561",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/about",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "95ca62dd-9695-4f3f-9249-c36c1ec53541",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/contact",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "049a1399-5fec-4f05-8856-3b3e411b0615",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/experience",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "c673d77b-1098-495b-a0d4-347dc47c03c7",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/system-controller",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "f388e468-9b10-4185-8bf5-b4daee1cee1a",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/crane-controller",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "7e9ae328-122c-4c1f-aaf9-669cd20dbe21",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/homebase",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "72163281-4e60-4826-a8ef-12ba2aca6579",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/hurricane-drone-simulation",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "b8ed63e6-2fd8-4107-93a9-fa3377ee4f6c",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/portfolio-website",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "4b49201c-6b8f-42fd-8dd0-25d24699257c",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/chameleon-ai-content",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "acc8b930-42da-4f8d-88b8-28f346b58fe2",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/crossword-solver",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "a539d28a-8858-4109-8b7e-2b3a477b522d",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/compile-ai-news",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
-      "evidence": {
-        "screenshot_path": null,
-        "console_log": null,
-        "wcag": null,
-        "viewport": null
-      }
-    },
-    {
-      "id": "bff6163c-5b3a-4d90-ab54-d358d249ffae",
-      "type": "Logic",
-      "severity": "high",
-      "page_url": "https://www.michael-cronin.com/projects/llm-jailbreak-defense",
-      "summary": "Inspector error: Page.set_viewport_size() takes 2 positional arguments but 3 were given",
-      "suggested_fix": "Review page structure and inspector compatibility",
       "evidence": {
         "screenshot_path": null,
         "console_log": null,
@@ -222,7 +26,12 @@
       "status": 200
     },
     {
-      "url": "https://www.michael-cronin.com/projects",
+      "url": "https://www.michael-cronin.com/experience",
+      "depth": 1,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/contact",
       "depth": 1,
       "status": 200
     },
@@ -237,27 +46,17 @@
       "status": 200
     },
     {
-      "url": "https://www.michael-cronin.com/contact",
+      "url": "https://www.michael-cronin.com/projects",
       "depth": 1,
       "status": 200
     },
     {
-      "url": "https://www.michael-cronin.com/experience",
-      "depth": 1,
+      "url": "https://www.michael-cronin.com/projects/chameleon-ai-content",
+      "depth": 2,
       "status": 200
     },
     {
       "url": "https://www.michael-cronin.com/projects/system-controller",
-      "depth": 2,
-      "status": 200
-    },
-    {
-      "url": "https://www.michael-cronin.com/projects/crane-controller",
-      "depth": 2,
-      "status": 200
-    },
-    {
-      "url": "https://www.michael-cronin.com/projects/homebase",
       "depth": 2,
       "status": 200
     },
@@ -272,7 +71,7 @@
       "status": 200
     },
     {
-      "url": "https://www.michael-cronin.com/projects/chameleon-ai-content",
+      "url": "https://www.michael-cronin.com/projects/homebase",
       "depth": 2,
       "status": 200
     },
@@ -282,12 +81,17 @@
       "status": 200
     },
     {
-      "url": "https://www.michael-cronin.com/projects/compile-ai-news",
+      "url": "https://www.michael-cronin.com/projects/llm-jailbreak-defense",
       "depth": 2,
       "status": 200
     },
     {
-      "url": "https://www.michael-cronin.com/projects/llm-jailbreak-defense",
+      "url": "https://www.michael-cronin.com/projects/crane-controller",
+      "depth": 2,
+      "status": 200
+    },
+    {
+      "url": "https://www.michael-cronin.com/projects/compile-ai-news",
       "depth": 2,
       "status": 200
     }
