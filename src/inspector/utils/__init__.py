@@ -1,5 +1,5 @@
-from .evidence import EvidenceCollector
-from .performance import PerformanceTracker
+from inspector.utils.evidence import EvidenceCollector
+from inspector.utils.performance import PerformanceTracker
 
 __all__ = [
     'EvidenceCollector',

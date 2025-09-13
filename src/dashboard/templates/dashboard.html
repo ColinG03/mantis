@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Mantis Dashboard - {{ report.seed_url }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Summary Cards -->
+    <div class="col-md-3">
+        <div class="card bg-primary text-white mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" data-field="total_pages">{{ stats.total_pages }}</h4>
+                        <p class="card-text">Pages Crawled</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-file-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-{% if stats.total_bugs == 0 %}success{% else %}danger{% endif %} text-white mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" data-field="total_bugs">{{ stats.total_bugs }}</h4>
+                        <p class="card-text">Total Bugs</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-bug fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ "%.0f"|format(stats.success_rate) }}%</h4>
+                        <p class="card-text">Success Rate</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-chart-line fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-secondary text-white mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title" id="scan-date">{{ stats.scanned_at[:10] }}</h6>
+                        <p class="card-text">Scan Date</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-calendar fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Site Info -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-globe"></i> Crawl Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Seed URL:</strong> 
+                        <a href="{{ stats.seed_url }}" target="_blank" data-field="seed_url">{{ stats.seed_url }}</a>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Scanned At:</strong> {{ stats.scanned_at }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Bugs by Severity</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="severityChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Bugs by Type</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="typeChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bug List -->
+<div class="row" id="bugs-section">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-list"></i> Bug Details <span id="bug-count-badge" class="badge bg-danger ms-2">{{ report.bugs_total if report else 0 }}</span></h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="bugs-table">
+                        <thead>
+                            <tr>
+                                <th>Severity</th>
+                                <th>Type</th>
+                                <th>Page</th>
+                                <th>Summary</th>
+                                <th>Impact</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bugs-tbody">
+                            {% if report and report.findings %}
+                                {% for bug in report.findings %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-{% if bug.severity == 'critical' %}danger{% elif bug.severity == 'high' %}warning{% elif bug.severity == 'medium' %}info{% else %}secondary{% endif %}">
+                                            {{ bug.severity|title }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if bug.type == 'Accessibility' %}
+                                            <i class="fas fa-universal-access"></i>
+                                        {% elif bug.type == 'UI' %}
+                                            <i class="fas fa-paint-brush"></i>
+                                        {% elif bug.type == 'Logic' %}
+                                            <i class="fas fa-cogs"></i>
+                                        {% endif %}
+                                        {{ bug.type }}
+                                    </td>
+                                    <td>
+                                        <a href="{{ bug.page_url }}" target="_blank" class="text-truncate d-block" style="max-width: 200px;">
+                                            {{ bug.page_url }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <strong>{{ bug.summary }}</strong>
+                                        {% if bug.impact_description %}
+                                            <br><small class="text-muted">{{ bug.impact_description }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if bug.priority %}
+                                            <span class="badge bg-{% if bug.priority == 'P1' %}danger{% elif bug.priority == 'P2' %}warning{% elif bug.priority == 'P3' %}info{% else %}secondary{% endif %} me-1">{{ bug.priority }}</span>
+                                        {% endif %}
+                                        {% if bug.category %}
+                                            <span class="badge bg-light text-dark me-1">{{ bug.category }}</span>
+                                        {% endif %}
+                                        <br>
+                                        {% if bug.business_impact %}
+                                            <small class="text-muted">{{ bug.business_impact }}</small><br>
+                                        {% endif %}
+                                        {% if bug.wcag_guidelines %}
+                                            {% for wcag in bug.wcag_guidelines %}
+                                                <span class="badge bg-info me-1">WCAG {{ wcag }}</span>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#bug-details-{{ loop.index }}" aria-expanded="false">
+                                            <i class="fas fa-eye"></i> Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                <!-- Expandable bug details row -->
+                                <tr>
+                                    <td colspan="6" class="p-0">
+                                        <div class="collapse" id="bug-details-{{ loop.index }}">
+                                            <div class="card card-body mx-3 mb-3">
+                                                <div class="row">
+                                                    <!-- Reproduction Steps -->
+                                                    {% if bug.reproduction_steps %}
+                                                    <div class="col-md-4">
+                                                        <h6><i class="fas fa-play-circle"></i> How to Reproduce</h6>
+                                                        <ol class="small">
+                                                            {% for step in bug.reproduction_steps %}
+                                                                <li>{{ step }}</li>
+                                                            {% endfor %}
+                                                        </ol>
+                                                    </div>
+                                                    {% endif %}
+                                                    
+                                                    <!-- Fix Steps -->
+                                                    {% if bug.fix_steps %}
+                                                    <div class="col-md-4">
+                                                        <h6><i class="fas fa-wrench"></i> How to Fix</h6>
+                                                        <ol class="small">
+                                                            {% for step in bug.fix_steps %}
+                                                                <li>{{ step }}</li>
+                                                            {% endfor %}
+                                                        </ol>
+                                                    </div>
+                                                    {% endif %}
+                                                    
+                                                    <!-- Technical Details -->
+                                                    <div class="col-md-4">
+                                                        <h6><i class="fas fa-code"></i> Technical Details</h6>
+                                                        
+                                                        {% if bug.affected_elements %}
+                                                        <div class="mb-2">
+                                                            <strong>Affected Elements:</strong><br>
+                                                            {% for element in bug.affected_elements %}
+                                                                <code class="small">{{ element }}</code><br>
+                                                            {% endfor %}
+                                                        </div>
+                                                        {% endif %}
+                                                        
+                                                        {% if bug.technical_details %}
+                                                        <div class="mb-2">
+                                                            <strong>Details:</strong><br>
+                                                            <small>{{ bug.technical_details }}</small>
+                                                        </div>
+                                                        {% endif %}
+                                                        
+                                                        <!-- Evidence -->
+                                                        <div>
+                                                            <strong>Evidence:</strong><br>
+                                        {% if bug.evidence.screenshot_path %}
+                                                                <i class="fas fa-camera text-primary"></i> Screenshot available<br>
+                                        {% endif %}
+                                        {% if bug.evidence.console_log %}
+                                                                <i class="fas fa-terminal text-warning"></i> Console log captured<br>
+                                        {% endif %}
+                                                        {% if bug.evidence.viewport %}
+                                                                <i class="fas fa-desktop text-info"></i> Viewport: {{ bug.evidence.viewport }}<br>
+                                                            {% endif %}
+                                                        </div>
+                                                        
+                                                        <!-- Additional metadata -->
+                                                        {% if bug.estimated_effort or bug.tags %}
+                                                        <div class="mt-2">
+                                                            {% if bug.estimated_effort %}
+                                                                <strong>Estimated Effort:</strong> {{ bug.estimated_effort }}<br>
+                                                            {% endif %}
+                                                            {% if bug.tags %}
+                                                                <strong>Tags:</strong><br>
+                                                                {% for tag in bug.tags %}
+                                                                    <span class="badge bg-secondary me-1">{{ tag }}</span>
+                                                                {% endfor %}
+                                                            {% endif %}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr id="no-bugs-row">
+                                    <td colspan="6" class="text-center text-muted">
+                                        <i class="fas fa-search"></i> No bugs found yet...
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success message (initially hidden, shown if no bugs after crawl) -->
+{% if not report or not report.findings %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-success" role="alert">
+            <h4 class="alert-heading"><i class="fas fa-check-circle"></i> Excellent!</h4>
+            <p>No bugs were found during the crawl. Your website appears to be in great shape!</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="dashboard-data">
+{
+    "severityData": {{ stats.bugs_by_severity|tojson|safe }},
+    "typeData": {{ stats.bugs_by_type|tojson|safe }}
+}
+</script>
+<script>
+// Parse data from JSON script tag
+window.dashboardData = JSON.parse(document.getElementById('dashboard-data').textContent);
+</script>
+{% endblock %}

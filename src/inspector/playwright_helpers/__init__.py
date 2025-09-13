@@ -1,5 +1,5 @@
-from .page_setup import PageSetup
-from .link_detection import LinkDetector
+from inspector.playwright_helpers.page_setup import PageSetup
+from inspector.playwright_helpers.link_detection import LinkDetector
 
 __all__ = [
     'PageSetup',
