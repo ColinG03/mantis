@@ -5,64 +5,50 @@
 {% block content %}
 <div class="row">
     <!-- Summary Cards -->
-    <div class="col-md-3">
-        <div class="card bg-primary text-white mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4 class="card-title" data-field="total_pages">{{ stats.total_pages }}</h4>
-                        <p class="card-text">Pages Crawled</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-file-alt fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card bg-{% if stats.total_bugs == 0 %}success{% else %}danger{% endif %} text-white mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4 class="card-title" data-field="total_bugs">{{ stats.total_bugs }}</h4>
-                        <p class="card-text">Total Bugs</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-bug fa-2x"></i>
+    <div class="d-flex justify-content-between">
+        <div class="col-md-3">
+            <div class="card bg-primary-green text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title" data-field="total_pages">{{ stats.total_pages }}</h4>
+                            <p class="card-text">Pages Crawled</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-file-alt fa-2x"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card bg-info text-white mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4 class="card-title">{{ "%.0f"|format(stats.success_rate) }}%</h4>
-                        <p class="card-text">Success Rate</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-chart-line fa-2x"></i>
+        
+        <div class="col-md-3">
+            <div class="card bg-{% if stats.total_bugs == 0 %}success-green{% else %}high{% endif %} text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title" data-field="total_bugs">{{ stats.total_bugs }}</h4>
+                            <p class="card-text">Total Bugs</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-bug fa-2x"></i>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-3">
-        <div class="card bg-secondary text-white mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title" id="scan-date">{{ stats.scanned_at[:10] }}</h6>
-                        <p class="card-text">Scan Date</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-calendar fa-2x"></i>
+        
+        <div class="col-md-3">
+            <div class="card bg-info-green text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ "%.0f"|format(stats.success_rate) }}%</h4>
+                            <p class="card-text">Success Rate</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-chart-line fa-2x"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -123,7 +109,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-list"></i> Bug Details <span id="bug-count-badge" class="badge bg-danger ms-2">{{ report.bugs_total if report else 0 }}</span></h5>
+                <h5><i class="fas fa-list"></i> Bug Details <span id="bug-count-badge" class="badge bg-high ms-2">{{ report.bugs_total if report else 0 }}</span></h5>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -143,7 +129,7 @@
                                 {% for bug in report.findings %}
                                 <tr>
                                     <td>
-                                        <span class="badge bg-{% if bug.severity == 'critical' %}danger{% elif bug.severity == 'high' %}warning{% elif bug.severity == 'medium' %}info{% else %}secondary{% endif %}">
+                                        <span class="badge bg-{% if bug.severity == 'critical' %}critical{% elif bug.severity == 'high' %}high{% elif bug.severity == 'medium' %}medium{% else %}low{% endif %}">
                                             {{ bug.severity|title }}
                                         </span>
                                     </td>
@@ -170,7 +156,7 @@
                                     </td>
                                     <td>
                                         {% if bug.priority %}
-                                            <span class="badge bg-{% if bug.priority == 'P1' %}danger{% elif bug.priority == 'P2' %}warning{% elif bug.priority == 'P3' %}info{% else %}secondary{% endif %} me-1">{{ bug.priority }}</span>
+                                            <span class="badge bg-{% if bug.priority == 'P1' %}critical{% elif bug.priority == 'P2' %}high{% elif bug.priority == 'P3' %}medium{% else %}low{% endif %} me-1">{{ bug.priority }}</span>
                                         {% endif %}
                                         {% if bug.category %}
                                             <span class="badge bg-light text-dark me-1">{{ bug.category }}</span>
@@ -181,12 +167,12 @@
                                         {% endif %}
                                         {% if bug.wcag_guidelines %}
                                             {% for wcag in bug.wcag_guidelines %}
-                                                <span class="badge bg-info me-1">WCAG {{ wcag }}</span>
+                                                <span class="badge bg-info-green me-1">WCAG {{ wcag }}</span>
                                             {% endfor %}
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#bug-details-{{ loop.index }}" aria-expanded="false">
+                                        <button class="btn btn-sm btn-outline-success" type="button" data-bs-toggle="collapse" data-bs-target="#bug-details-{{ loop.index }}" aria-expanded="false">
                                             <i class="fas fa-eye"></i> Details
                                         </button>
                                     </td>
@@ -209,7 +195,7 @@
                                                             </ol>
                                                             {% else %}
                                                             <p class="small text-muted">
-                                                                <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                                                <i class="fas fa-exclamation-triangle text-success"></i> 
                                                                 We were unable to save the reproduction steps.
                                                             </p>
                                                             {% endif %}
@@ -217,7 +203,7 @@
                                                         
                                                         <div class="mb-3">
                                                             {% if bug.suggested_fix %}
-                                                            <div class="alert alert-info small mb-2">
+                                                            <div class="alert alert-success small mb-2">
                                                                 <i class="fas fa-lightbulb"></i> <strong>Suggested Fix:</strong> {{ bug.suggested_fix }}
                                                             </div>
                                                             {% endif %}
@@ -229,7 +215,7 @@
                                                             </ol>
                                                             {% elif not bug.suggested_fix %}
                                                             <p class="small text-muted">
-                                                                <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                                                <i class="fas fa-exclamation-triangle text-success"></i> 
                                                                 We were unable to determine the fix steps.
                                                             </p>
                                                             {% endif %}
@@ -260,13 +246,13 @@
                                                         <div>
                                                             <strong>Evidence:</strong><br>
                                                             {% if bug.evidence.console_log %}
-                                                                <i class="fas fa-terminal text-warning"></i> Console log captured<br>
+                                                                <i class="fas fa-terminal text-success"></i> Console log captured<br>
                                                             {% endif %}
                                                             {% if bug.evidence.viewport %}
                                                                 <i class="fas fa-desktop text-info"></i> Viewport: {{ bug.evidence.viewport }}<br>
                                                             {% endif %}
                                                             {% if bug.evidence.screenshot_path %}
-                                                                <i class="fas fa-camera text-primary"></i> Screenshot captured<br>
+                                                                <i class="fas fa-camera text-success"></i> Screenshot captured<br>
                                                             {% endif %}
                                                         </div>
                                                         
@@ -279,7 +265,7 @@
                                                             {% if bug.tags %}
                                                                 <strong>Tags:</strong><br>
                                                                 {% for tag in bug.tags %}
-                                                                    <span class="badge bg-secondary me-1">{{ tag }}</span>
+                                                                    <span class="badge bg-low me-1">{{ tag }}</span>
                                                                 {% endfor %}
                                                             {% endif %}
                                                         </div>
@@ -298,7 +284,7 @@
                                                                      style="max-width: 100%; max-height: 250px; cursor: pointer; border: 1px solid #ddd; border-radius: 4px;"
                                                                      onclick="openScreenshotModal(this.src)"
                                                                      title="Click to enlarge">
-                                                                <br><small class="text-muted"><i class="fas fa-search-plus text-primary"></i> Click to enlarge</small>
+                                                                <br><small class="text-muted"><i class="fas fa-search-plus text-success"></i> Click to enlarge</small>
                                                             </div>
                                                         </div>
                                                         {% endif %}

@@ -1,7 +1,7 @@
 /* Mantis Dashboard Styles */
 
 body {
-    background-color: #f8f9fa;
+    background-color: #f0f8f0;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -16,8 +16,8 @@ body {
 }
 
 .card-header {
-    background-color: #fff;
-    border-bottom: 1px solid #e9ecef;
+    background-color: #f8fff8;
+    border-bottom: 1px solid #d4e6d4;
     font-weight: 600;
 }
 
@@ -35,21 +35,47 @@ body {
     max-width: 200px;
 }
 
-/* Severity colors */
+/* Severity colors - Green theme with darker = more severe */
 .bg-critical {
-    background-color: #dc3545 !important;
+    background-color: #1b4332 !important; /* Very dark green for critical */
 }
 
 .bg-high {
-    background-color: #fd7e14 !important;
+    background-color: #2d5a3d !important; /* Dark green for high */
 }
 
 .bg-medium {
-    background-color: #ffc107 !important;
+    background-color: #52b788 !important; /* Medium green for medium */
 }
 
 .bg-low {
-    background-color: #6c757d !important;
+    background-color: #95d5b2 !important; /* Light green for low */
+}
+
+/* Additional green theme colors */
+.bg-success-green {
+    background-color: #40916c !important;
+}
+
+.bg-info-green {
+    background-color: #74c69d !important;
+}
+
+.bg-primary-green {
+    background-color: #2d5a3d !important;
+}
+
+/* Ensure text is readable on green backgrounds */
+.bg-critical, .bg-high, .bg-primary-green {
+    color: white !important;
+}
+
+.bg-medium, .bg-info-green {
+    color: white !important;
+}
+
+.bg-low, .bg-success-green {
+    color: #1b4332 !important;
 }
 
 /* Chart containers */

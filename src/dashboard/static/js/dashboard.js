@@ -43,7 +43,7 @@ class DashboardManager {
                 labels: Object.keys(severityData).map(s => s.charAt(0).toUpperCase() + s.slice(1)),
                 datasets: [{
                     data: Object.values(severityData),
-                    backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#6c757d']
+                    backgroundColor: ['#1b4332', '#2d5a3d', '#52b788', '#95d5b2']
                 }]
             },
             options: {
@@ -68,7 +68,7 @@ class DashboardManager {
                 datasets: [{
                     label: 'Bug Count',
                     data: Object.values(typeData),
-                    backgroundColor: ['#0d6efd', '#198754', '#dc3545']
+                    backgroundColor: ['#40916c', '#74c69d', '#2d5a3d']
                 }]
             },
             options: {
