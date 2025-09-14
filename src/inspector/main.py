@@ -139,13 +139,14 @@ class Inspector(InspectorInterface):
             if config.performance:
                 await self._run_performance_scan(page, url, result)
             
+            # Collect outlinks and navigation metadata (always needed for crawling and action recording)
+            link_detector = LinkDetector(page, url)
+            result.outlinks = await link_detector.collect_outlinks()
+            result.navigation_metadata = await link_detector.get_navigation_metadata()
+            
             # Run comprehensive UI scans (visual + interactive) if enabled
             if config.ui_scans:
                 await self._run_ui_scans(page, url, result, config)
-            
-            # Collect outlinks (always needed for crawling)
-            link_detector = LinkDetector(page, url)
-            result.outlinks = await link_detector.collect_outlinks()
             
         except PlaywrightTimeoutError:
             result = PageResult(page_url=url)
@@ -246,6 +247,9 @@ class Inspector(InspectorInterface):
             
             # Create structured explorer
             explorer = StructuredExplorer(self.output_dir, config.model)
+            
+            # Pass navigation metadata for better action recording
+            explorer.navigation_metadata = result.navigation_metadata
             
             # Always run complete exploration (visual + interactive)
             explorer_result = await explorer.run_complete_exploration(page, url)

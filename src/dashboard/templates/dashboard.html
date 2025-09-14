@@ -202,8 +202,13 @@
                                                             </ol>
                                                             {% else %}
                                                             <p class="small text-muted">
+                                                                {% if bug.type == 'Accessibility' or bug.type == 'Performance' %}
+                                                                <i class="fas fa-info-circle text-info"></i> 
+                                                                Not applicable - this is an automated scan result.
+                                                                {% else %}
                                                                 <i class="fas fa-exclamation-triangle text-success"></i> 
                                                                 We were unable to save the reproduction steps.
+                                                                {% endif %}
                                                             </p>
                                                             {% endif %}
                                                         </div>

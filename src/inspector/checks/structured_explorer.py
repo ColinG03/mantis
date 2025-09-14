@@ -45,6 +45,7 @@ class StructuredExplorer:
         self.bugs = []
         self.action_recorder: Optional[ActionRecorder] = None
         self.interaction_tracker = InteractionTracker()  # Track tested elements to prevent duplicates
+        self.navigation_metadata: Dict[str, Dict] = {}  # Store navigation metadata for action recording
     
     def _format_reproduction_steps(self) -> List[str]:
         """Format action recorder steps as list of strings for bug reproduction_steps"""
@@ -53,6 +54,52 @@ class StructuredExplorer:
         
         # Convert ReproStep objects to simple string descriptions
         return [step.description for step in self.action_recorder.steps]
+    
+    def _record_spa_navigation(self, page_url: str):
+        """Record navigation with SPA context awareness"""
+        from urllib.parse import urlparse, urljoin
+        
+        # Check if this is an SPA route (has fragment that looks like a route)
+        parsed = urlparse(page_url)
+        if parsed.fragment:
+            # Check if fragment looks like SPA route
+            try:
+                from ...orchestrator.url_utils import URLUtils
+            except ImportError:
+                from orchestrator.url_utils import URLUtils
+            if URLUtils._is_spa_route('#' + parsed.fragment):
+                # This is an SPA route - try to find the navigation context
+                base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+                route_path = parsed.fragment
+                
+                # Look for navigation metadata that matches this route
+                matching_nav = None
+                for route, nav_data in self.navigation_metadata.items():
+                    # Remove # from route and / from both for comparison
+                    route_clean = route.lstrip('#').lstrip('/')
+                    path_clean = route_path.lstrip('/')
+                    if route_clean == path_clean:
+                        matching_nav = nav_data
+                        break
+                
+                if matching_nav:
+                    # Record the intended navigation sequence
+                    self.action_recorder.record_navigation(base_url, "Navigate to homepage")
+                    self.action_recorder.record_click(
+                        matching_nav.get('selector', 'nav a'),
+                        matching_nav.get('text', ''),
+                        f"Click '{matching_nav.get('text', 'navigation link')}' to navigate to {route_path}"
+                    )
+                else:
+                    # Fallback: record direct navigation with SPA context
+                    self.action_recorder.record_navigation(
+                        page_url, 
+                        f"Navigate to SPA route: {route_path} (direct navigation)"
+                    )
+                return
+        
+        # Standard navigation recording
+        self.action_recorder.record_navigation(page_url, "Navigate to page for testing")
         
     async def run_complete_exploration(self, page: Page, page_url: str) -> PageResult:
         """
@@ -69,8 +116,8 @@ class StructuredExplorer:
         performance_tracker = PerformanceTracker()
         self.action_recorder = ActionRecorder(page_url)
         
-        # Record initial navigation
-        self.action_recorder.record_navigation(page_url, "Navigate to page for testing")
+        # Record initial navigation with SPA context if available
+        self._record_spa_navigation(page_url)
         
         try:
             # Collect initial performance data

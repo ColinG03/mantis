@@ -17,7 +17,7 @@ class URLUtils:
         """
         Normalize a URL for consistent comparison.
         
-        - Strips fragments (#section)
+        - Strips fragments (#section) UNLESS they look like SPA routes
         - Ensures consistent trailing slash handling
         - Converts to lowercase domain
         
@@ -32,20 +32,26 @@ class URLUtils:
         # Lowercase the domain, preserve path case
         normalized_netloc = parsed.netloc.lower()
         
-        # Strip fragment
-        # Handle trailing slash consistently - remove it for normalization
+        # Handle trailing slash consistently
         path = parsed.path.rstrip('/')
         if not path:  # Root path should be "/"
             path = '/'
         
-        # Reconstruct without fragment
+        # Determine if we should preserve the fragment (for SPA routes)
+        preserve_fragment = parsed.fragment and URLUtils._is_spa_route('#' + parsed.fragment)
+        
+        # For SPA routes, ensure the path ends with slash for proper fragment URLs
+        if preserve_fragment and not path.endswith('/'):
+            path = path + '/'
+        
+        # Reconstruct with or without fragment based on SPA detection
         normalized = urlunparse((
             parsed.scheme,
             normalized_netloc,
             path,
             parsed.params,
             parsed.query,
-            None  # No fragment
+            parsed.fragment if preserve_fragment else None
         ))
         
         return normalized
@@ -288,3 +294,43 @@ class URLUtils:
                 return False
         
         return True
+    
+    @staticmethod
+    def _is_spa_route(hash_link: str) -> bool:
+        """
+        Determine if a hash link is likely an SPA route vs a same-page anchor.
+        
+        SPA routes typically look like:
+        - #/about, #/projects  
+        - #/user/123
+        
+        Same-page anchors look like:
+        - #section1, #top, #contact-form
+        """
+        # Remove the # prefix
+        fragment = hash_link[1:] if hash_link.startswith('#') else hash_link
+        
+        # SPA route indicators
+        spa_indicators = [
+            fragment.startswith('/'),           # #/about, #/projects
+            '/' in fragment,                    # #user/123, #app/dashboard  
+            fragment in ['home', 'about', 'contact', 'projects', 'portfolio', 'blog', 'about-me'],  # common page names
+        ]
+        
+        # Traditional anchor indicators (less likely to be routes)
+        anchor_indicators = [
+            fragment.isdigit(),                 # #123 (probably a section)
+            fragment in ['top', 'bottom', 'header', 'footer', 'main'],  # page sections
+            len(fragment.split('-')) > 2,       # #contact-form-section (descriptive anchors)
+        ]
+        
+        # If any SPA indicator is true, treat as route
+        if any(spa_indicators):
+            return True
+            
+        # If any anchor indicator is true, treat as anchor
+        if any(anchor_indicators):
+            return False
+            
+        # Default: if it's a single word that could be a page, treat as route
+        return len(fragment.split()) == 1 and len(fragment) > 2

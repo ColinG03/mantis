@@ -67,6 +67,7 @@ class PageResult:
     timings: Dict[str, float] = field(default_factory=dict)  # dcl, load
     trace: List[Dict] = field(default_factory=list)
     viewport_artifacts: List[str] = field(default_factory=list)
+    navigation_metadata: Dict[str, Dict] = field(default_factory=dict)  # URL -> {text, selector, etc.}
 
 @dataclass
 class CrawlReport:

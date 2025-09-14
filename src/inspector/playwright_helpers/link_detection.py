@@ -106,9 +106,14 @@ class LinkDetector:
                 if link.startswith(('javascript:', 'mailto:', 'tel:', 'sms:')):
                     continue
                 
-                # Skip anchor links (same page)
+                # Smart hash filtering: preserve SPA routes, skip traditional anchors
                 if link.startswith('#'):
-                    continue
+                    if self._is_spa_route(link):
+                        # Convert hash route to full URL
+                        absolute_url = urljoin(base_url, link)
+                    else:
+                        # Skip traditional same-page anchors
+                        continue
                 
                 # Convert relative URLs to absolute
                 if link.startswith(('http://', 'https://')):
@@ -119,10 +124,14 @@ class LinkDetector:
                 # Parse and validate URL
                 parsed = urlparse(absolute_url)
                 if parsed.scheme in ('http', 'https') and parsed.netloc:
-                    # Remove fragment (anchor) part for deduplication
+                    # For SPA routes, preserve the fragment; otherwise remove it
                     clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
                     if parsed.query:
                         clean_url += f"?{parsed.query}"
+                    
+                    # Preserve fragment for SPA routes
+                    if parsed.fragment and self._is_spa_route('#' + parsed.fragment):
+                        clean_url += f"#{parsed.fragment}"
                     
                     processed.append(clean_url)
                     
@@ -193,3 +202,264 @@ class LinkDetector:
             return await self.page.evaluate(js_code)
         except Exception:
             return []
+    
+    def _is_spa_route(self, hash_link: str) -> bool:
+        """
+        Determine if a hash link is likely an SPA route vs a same-page anchor.
+        
+        SPA routes typically look like:
+        - #/about, #/projects  
+        - #/user/123
+        
+        Same-page anchors look like:
+        - #section1, #top, #contact-form
+        """
+        # Remove the # prefix
+        fragment = hash_link[1:] if hash_link.startswith('#') else hash_link
+        
+        # SPA route indicators
+        spa_indicators = [
+            fragment.startswith('/'),           # #/about, #/projects
+            '/' in fragment,                    # #user/123, #app/dashboard  
+            fragment in ['home', 'about', 'contact', 'projects', 'portfolio', 'blog', 'about-me'],  # common page names
+        ]
+        
+        # Traditional anchor indicators (less likely to be routes)
+        anchor_indicators = [
+            fragment.isdigit(),                 # #123 (probably a section)
+            fragment in ['top', 'bottom', 'header', 'footer', 'main'],  # page sections
+            len(fragment.split('-')) > 2,       # #contact-form-section (descriptive anchors)
+        ]
+        
+        # If any SPA indicator is true, treat as route
+        if any(spa_indicators):
+            return True
+            
+        # If any anchor indicator is true, treat as anchor
+        if any(anchor_indicators):
+            return False
+            
+        # Default: if it's a single word that could be a page, treat as route
+        return len(fragment.split()) == 1 and len(fragment) > 2
+    
+    async def _discover_spa_routes(self) -> List[str]:
+        """
+        Discover SPA routes through JavaScript analysis and bundle parsing.
+        
+        Returns:
+            List of discovered SPA routes as full URLs
+        """
+        routes = []
+        
+        try:
+            # Method 1: Check for React Router routes in JavaScript
+            react_routes = await self._discover_react_routes()
+            routes.extend(react_routes)
+            
+            # Method 2: Parse JavaScript bundles for route patterns
+            bundle_routes = await self._parse_js_bundles()
+            routes.extend(bundle_routes)
+            
+            # Method 3: Look for navigation elements with route-like hrefs
+            nav_routes = await self._discover_navigation_routes()
+            routes.extend(nav_routes)
+            
+        except Exception as e:
+            print(f"Error discovering SPA routes: {str(e)}")
+        
+        # Convert relative routes to absolute URLs and filter
+        absolute_routes = []
+        for route in routes:
+            if route and not route.startswith(('http://', 'https://')):
+                absolute_url = urljoin(self.current_url, route)
+                # Only include same-host routes
+                if urlparse(absolute_url).netloc == self.current_host:
+                    absolute_routes.append(absolute_url)
+        
+        return list(set(absolute_routes))  # Remove duplicates
+    
+    async def _discover_react_routes(self) -> List[str]:
+        """Extract React Router routes from the page."""
+        js_code = """
+        () => {
+            const routes = [];
+            
+            // Method 1: Check for React Router in window
+            if (window.__REACT_ROUTER__) {
+                // Extract routes from router instance if available
+                try {
+                    const router = window.__REACT_ROUTER__;
+                    if (router.routes) {
+                        router.routes.forEach(route => {
+                            if (route.path) routes.push(route.path);
+                        });
+                    }
+                } catch (e) {}
+            }
+            
+            // Method 2: Look for navigation elements with React Router patterns
+            const navElements = document.querySelectorAll('nav a, .nav a, [role="navigation"] a');
+            navElements.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('http') && !href.startsWith('mailto:')) {
+                    routes.push(href);
+                }
+            });
+            
+            return [...new Set(routes)]; // Remove duplicates
+        }
+        """
+        
+        try:
+            return await self.page.evaluate(js_code)
+        except Exception:
+            return []
+    
+    async def _parse_js_bundles(self) -> List[str]:
+        """Parse JavaScript bundles for route definitions."""
+        js_code = """
+        () => {
+            const routes = [];
+            
+            // Get all script tags
+            const scripts = Array.from(document.scripts);
+            
+            for (const script of scripts) {
+                if (script.src && script.src.includes('index-')) {
+                    // This is likely the main bundle - we'll analyze its content
+                    try {
+                        // Look for common route patterns in the current page's HTML
+                        const pageContent = document.documentElement.innerHTML;
+                        
+                        // React Router patterns: to:"/about-me"
+                        const reactRoutes = pageContent.match(/to:"([^"]+)"/g);
+                        if (reactRoutes) {
+                            reactRoutes.forEach(match => {
+                                const route = match.match(/to:"([^"]+)"/)[1];
+                                if (route && route.startsWith('/')) {
+                                    routes.push(route);
+                                }
+                            });
+                        }
+                        
+                        // Vue Router patterns: path:"/about"
+                        const vueRoutes = pageContent.match(/path:"([^"]+)"/g);
+                        if (vueRoutes) {
+                            vueRoutes.forEach(match => {
+                                const route = match.match(/path:"([^"]+)"/)[1];
+                                if (route && route.startsWith('/')) {
+                                    routes.push(route);
+                                }
+                            });
+                        }
+                        
+                    } catch (e) {}
+                }
+            }
+            
+            return [...new Set(routes)]; // Remove duplicates
+        }
+        """
+        
+        try:
+            return await self.page.evaluate(js_code)
+        except Exception:
+            return []
+    
+    async def _discover_navigation_routes(self) -> List[str]:
+        """Discover routes from navigation elements."""
+        js_code = """
+        () => {
+            const routes = [];
+            
+            // Look for navigation patterns
+            const selectors = [
+                'nav a[href]',
+                '.navbar a[href]',
+                '.navigation a[href]',
+                '[role="navigation"] a[href]',
+                '.menu a[href]',
+                '.nav-links a[href]'
+            ];
+            
+            selectors.forEach(selector => {
+                try {
+                    const links = document.querySelectorAll(selector);
+                    links.forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href && 
+                            !href.startsWith('http') && 
+                            !href.startsWith('mailto:') && 
+                            !href.startsWith('tel:') &&
+                            !href.startsWith('javascript:')) {
+                            routes.push(href);
+                        }
+                    });
+                } catch (e) {}
+            });
+            
+            return [...new Set(routes)]; // Remove duplicates
+        }
+        """
+        
+        try:
+            return await self.page.evaluate(js_code)
+        except Exception:
+            return []
+    
+    async def get_navigation_metadata(self) -> dict:
+        """
+        Get metadata about navigation links for action recording.
+        
+        Returns:
+            Dictionary mapping URLs to their navigation context (text, selector, etc.)
+        """
+        js_code = """
+        () => {
+            const navigationMap = {};
+            
+            // Look for navigation patterns
+            const selectors = [
+                'nav a[href]',
+                '.navbar a[href]',
+                '.navigation a[href]',
+                '[role="navigation"] a[href]',
+                '.menu a[href]',
+                '.nav-links a[href]'
+            ];
+            
+            selectors.forEach(selector => {
+                try {
+                    const links = document.querySelectorAll(selector);
+                    links.forEach((link, index) => {
+                        const href = link.getAttribute('href');
+                        if (href && 
+                            !href.startsWith('http') && 
+                            !href.startsWith('mailto:') && 
+                            !href.startsWith('tel:') &&
+                            !href.startsWith('javascript:')) {
+                            
+                            // Create a unique selector for this link
+                            const linkText = link.textContent?.trim() || '';
+                            const linkSelector = `${selector.split('[')[0]}:nth-of-type(${index + 1})`;
+                            
+                            navigationMap[href] = {
+                                text: linkText,
+                                selector: linkSelector,
+                                originalSelector: selector,
+                                title: link.getAttribute('title') || '',
+                                ariaLabel: link.getAttribute('aria-label') || ''
+                            };
+                        }
+                    });
+                } catch (e) {}
+            });
+            
+            return navigationMap;
+        }
+        """
+        
+        try:
+            return await self.page.evaluate(js_code)
+        except Exception:
+            return {}
