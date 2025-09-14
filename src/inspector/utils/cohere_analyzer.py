@@ -122,38 +122,70 @@ class CohereAnalyzer:
     
     def _create_analysis_prompt(self, viewport: str, page_url: str) -> str:
         """Create the analysis prompt for Cohere"""
-        return f"""You are an expert UI/UX auditor analyzing a website screenshot from {viewport} viewport.
+        return f"""
+You are an expert UI/UX auditor. You are given a single static screenshot from the {viewport} viewport of {page_url}. 
 
-CRITICAL: You must respond with valid JSON only - no explanations, no markdown formatting, no additional text.
+Your job is to detect ONLY severe, visible visual layout problems that make the page hard or impossible to read or use.
 
-Analyze this screenshot of {page_url} and identify ONLY severe visual layout issues and UX problems that would significantly impact user experience.
+CRITICAL INSTRUCTION: 
+Respond with **VALID JSON ONLY** — no explanations, no prose, no markdown. 
+If no problems are detected, return exactly: []
 
-Focus on detecting these types of issues:
-1. **Visual Layout Problems**: Overlapping elements, broken layouts, elements cut off
-2. **Broken Images**: Missing images, broken image placeholders, alt text showing
-3. **Critical UX Issues**: Broken navigation, inaccessible buttons, form problems
+=============================
+STRICT RULES (WHAT TO IGNORE)
+=============================
+- IGNORE anything that is simply off-screen or partially out of view because scrolling would reveal it.
+- IGNORE dropdown menus, modals, or popovers that cover content behind them. This is expected behavior unless the menu itself is broken (e.g. misaligned, visually corrupted, overlapping itself).
+- IGNORE minor spacing, padding, or alignment preferences unless they make text unreadable or cause elements to collide.
+- IGNORE color, contrast, fonts, or styling complaints — these are not visual bugs for this task.
+- IGNORE missing features or functionality — you are only analyzing what is visible.
+- IGNORE anything that would require interaction to confirm (hover states, animations, clickable links).
+- IGNORE performance issues, loading times, or accessibility issues unrelated to visual layout.
 
-**Response Format:**
-Return a JSON array of bug objects. Each bug should have:
-- "summary": Brief description of the visual issue
+=============================
+WHAT COUNTS AS A REAL BUG
+=============================
+You must ONLY report issues that meet ALL these conditions:
+1. **CLEARLY VISIBLE in the screenshot**
+2. **SEVERE enough** that they would confuse a typical user, make text unreadable, or break the layout
+3. **NOT fixable by scrolling** — the problem must exist entirely within the visible frame
+
+=============================
+TYPES OF ISSUES TO REPORT
+=============================
+Report ONLY if they are obvious and severe:
+- **Layout Breaks**: Overlapping text or elements that cannot be read, elements cut off in the middle (not just cropped by viewport bottom).
+- **Critical Misalignment**: UI elements that are completely out of place (e.g. buttons floating on top of unrelated sections, forms disjointed).
+- **Broken or Missing Assets**: Images showing "broken" icons or missing file placeholders.
+- **Unreadable Text**: Text rendered outside its container, overlapping with other text, or clipped so words are incomplete.
+- **Navigation Problems**: Entire navbars missing, completely broken hamburger menus (e.g. icon overlaps other UI, menu renders in wrong position).
+
+=============================
+OUTPUT FORMAT
+=============================
+Return a JSON array where each object has:
+- "summary": Brief description of the issue
 - "severity": One of "low", "medium", "high", "critical"
-- "suggested_fix": Optional brief suggestion
+- "suggested_fix": Optional short suggestion for how to fix the issue
 
-DO NOT REPORT:
-1. Issues about dropdown menues hiding content below them when opened - that is not a bug, it's a feature.
-2. Issues about contrast or color usage.
-3. Visually unappealing spacing and layout issues. Only report these if they result in acutal usability issues.
+If no valid issues are found, respond with:
+[]
 
-IMPORTANT RULES:
-- Only report REAL, VISIBLE issues in the screenshot
-- Do not report minor stylistic preferences
-- Do not report issues that require interaction to see
-- Do not report missing features that aren't visible
-- Be conservative - only report clear, obvious problems
+EXAMPLE OUTPUT (when issues exist):
+[
+  {{
+    "summary": "Main heading text overlaps with hero image, making it unreadable",
+    "severity": "high",
+    "suggested_fix": "Adjust CSS so heading text is fully visible and not overlapping image"
+  }},
+  {{
+    "summary": "Submit button is half cut off by the viewport bottom",
+    "severity": "high",
+    "suggested_fix": "Adjust CSS so button is fully visible and not overlapping viewport bottom"
+  }}
+]
+"""
 
-If no significant visual issues are found, return an empty array: []
-
-Analyze the screenshot and respond with JSON only:"""
 
     def _parse_cohere_response(self, response_text: str, page_url: str, viewport: str) -> List[Bug]:
         """
@@ -222,6 +254,7 @@ Analyze the screenshot and respond with JSON only:"""
                     severity=severity,
                     page_url=page_url,
                     summary=item.get('summary', 'Visual issue detected'),
+                    suggested_fix=item.get('suggested_fix', ''),
                     impact_description=item.get('impact_description', ''),
                     affected_elements=item.get('affected_elements', []),
                     reproduction_steps=item.get('reproduction_steps', []),

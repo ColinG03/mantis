@@ -216,14 +216,18 @@
                                                         </div>
                                                         
                                                         <div class="mb-3">
-                                                            <h6><i class="fas fa-wrench"></i> How to Fix</h6>
+                                                            {% if bug.suggested_fix %}
+                                                            <div class="alert alert-info small mb-2">
+                                                                <i class="fas fa-lightbulb"></i> <strong>Suggested Fix:</strong> {{ bug.suggested_fix }}
+                                                            </div>
+                                                            {% endif %}
                                                             {% if bug.fix_steps %}
                                                             <ol class="small">
                                                                 {% for step in bug.fix_steps %}
                                                                     <li>{{ step }}</li>
                                                                 {% endfor %}
                                                             </ol>
-                                                            {% else %}
+                                                            {% elif not bug.suggested_fix %}
                                                             <p class="small text-muted">
                                                                 <i class="fas fa-exclamation-triangle text-warning"></i> 
                                                                 We were unable to determine the fix steps.

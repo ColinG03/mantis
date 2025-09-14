@@ -70,58 +70,70 @@ class GeminiAnalyzer:
             viewport: Viewport size (e.g., "1280x800")
             page_url: URL being tested
         """
-        return f"""You are analyzing a screenshot of a web page for severe visual layout issues and UX problems. Only report issues that will drastically impair the user's ability to use the page.
+        return f"""
+You are an expert UI/UX auditor. You are given a single static screenshot from the {viewport} viewport of {page_url}. 
 
-**Context:** {context}
-**Viewport:** {viewport}
-**Page URL:** {page_url}
+Your job is to detect ONLY severe, visible visual layout problems that make the page hard or impossible to read or use.
 
-**Focus on detecting these types of issues:**
-1. **Visual Layout Problems:**
-   - Text overflow or cutoff
-   - Elements overlapping inappropriately
-   - Broken responsive design
-   - Content extending beyond containers
-   - Severely misaligned elements
-   - Broken grid layouts
+CRITICAL INSTRUCTION: 
+Respond with **VALID JSON ONLY** — no explanations, no prose, no markdown. 
+If no problems are detected, return exactly: []
 
-2. **Severe UX Issues:**
-   - Completely unusable interfaces
-   - Major visual breakage that prevents interaction
-   - Confusing or broken layouts
-   - Critical content that's hidden or inaccessible
+=============================
+STRICT RULES (WHAT TO IGNORE)
+=============================
+- IGNORE anything that is simply off-screen or partially out of view because scrolling would reveal it.
+- IGNORE dropdown menus, modals, or popovers that cover content behind them. This is expected behavior unless the menu itself is broken (e.g. misaligned, visually corrupted, overlapping itself).
+- IGNORE minor spacing, padding, or alignment preferences unless they make text unreadable or cause elements to collide.
+- IGNORE color, contrast, fonts, or styling complaints — these are not visual bugs for this task.
+- IGNORE missing features or functionality — you are only analyzing what is visible.
+- IGNORE anything that would require interaction to confirm (hover states, animations, clickable links).
+- IGNORE performance issues, loading times, or accessibility issues unrelated to visual layout.
 
-**DO NOT report:**
-- Accessibility issues (color contrast, focus indicators)
-- Functional issues (whether buttons work)
-- Minor aesthetic preferences
-- Spacing inconsistencies
-- Viewport cutoffs that can be easily scrolled into view.
-- Contrast or color issues.
+=============================
+WHAT COUNTS AS A REAL BUG
+=============================
+You must ONLY report issues that meet ALL these conditions:
+1. **CLEARLY VISIBLE in the screenshot**
+2. **SEVERE enough** that they would confuse a typical user, make text unreadable, or break the layout
+3. **NOT fixable by scrolling** — the problem must exist entirely within the visible frame
 
-**Response Format:**
-Return a JSON array of bug objects. Each bug should have:
-- "summary": Brief description of the visual issue
+=============================
+TYPES OF ISSUES TO REPORT
+=============================
+Report ONLY if they are obvious and severe:
+- **Layout Breaks**: Overlapping text or elements that cannot be read, elements cut off in the middle (not just cropped by viewport bottom).
+- **Critical Misalignment**: UI elements that are completely out of place (e.g. buttons floating on top of unrelated sections, forms disjointed).
+- **Broken or Missing Assets**: Images showing "broken" icons or missing file placeholders.
+- **Unreadable Text**: Text rendered outside its container, overlapping with other text, or clipped so words are incomplete.
+- **Navigation Problems**: Entire navbars missing, completely broken hamburger menus (e.g. icon overlaps other UI, menu renders in wrong position).
+
+=============================
+OUTPUT FORMAT
+=============================
+Return a JSON array where each object has:
+- "summary": Brief description of the issue
 - "severity": One of "low", "medium", "high", "critical"
-- "suggested_fix": Optional brief suggestion
+- "suggested_fix": Optional short suggestion for how to fix the issue
 
-If no significant visual issues are found, return an empty array: []
+If no valid issues are found, respond with:
+[]
 
-**Example response:**
+EXAMPLE OUTPUT (when issues exist):
 [
   {{
-    "summary": "Header text overflows container on mobile viewport",
-    "severity": "high", 
-    "suggested_fix": "Add text wrapping or responsive font sizing"
+    "summary": "Main heading text overlaps with hero image, making it unreadable",
+    "severity": "high",
+    "suggested_fix": "Adjust CSS so heading text is fully visible and not overlapping image"
   }},
   {{
-    "summary": "Dropdown menu extends beyond screen boundaries",
-    "severity": "medium",
-    "suggested_fix": "Implement dropdown position detection and adjustment"
+    "summary": "Submit button is half cut off by the viewport bottom",
+    "severity": "high",
+    "suggested_fix": "Adjust CSS so button is fully visible and not overlapping viewport bottom"
   }}
 ]
+"""
 
-Analyze the screenshot and respond with JSON only:"""
     
     def _parse_gemini_response(self, response_text: str, page_url: str, screenshot_path: str, viewport: str) -> List[Bug]:
         """
@@ -167,7 +179,12 @@ Analyze the screenshot and respond with JSON only:"""
                     severity=bug_data.get("severity", "medium"),
                     page_url=page_url,
                     summary=bug_data.get("summary", "Visual layout issue detected"),
-                    suggested_fix=bug_data.get("suggested_fix"),
+                    suggested_fix=bug_data.get("suggested_fix", ""),
+                    impact_description=bug_data.get("impact_description", ""),
+                    affected_elements=bug_data.get("affected_elements", []),
+                    reproduction_steps=bug_data.get("reproduction_steps", []),
+                    fix_steps=bug_data.get("fix_steps", []),
+                    wcag_guidelines=bug_data.get("wcag_guidelines", []),
                     evidence=evidence
                 )
                 bugs.append(bug)

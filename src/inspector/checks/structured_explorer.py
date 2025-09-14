@@ -45,6 +45,14 @@ class StructuredExplorer:
         self.bugs = []
         self.action_recorder: Optional[ActionRecorder] = None
         self.interaction_tracker = InteractionTracker()  # Track tested elements to prevent duplicates
+    
+    def _format_reproduction_steps(self) -> List[str]:
+        """Format action recorder steps as list of strings for bug reproduction_steps"""
+        if not self.action_recorder or not self.action_recorder.steps:
+            return []
+        
+        # Convert ReproStep objects to simple string descriptions
+        return [step.description for step in self.action_recorder.steps]
         
     async def run_complete_exploration(self, page: Page, page_url: str) -> PageResult:
         """
@@ -158,9 +166,12 @@ class StructuredExplorer:
             if error:
                 print(f"      ⚠️  {self.model.title()} analysis error: {error}")
             else:
-                # Update screenshot paths in the bug evidence
+                # Update screenshot paths in the bug evidence and populate reproduction steps
                 for bug in screenshot_bugs:
                     bug.evidence.screenshot_path = screenshot_path
+                    # Populate reproduction steps from action recorder
+                    if self.action_recorder:
+                        bug.reproduction_steps = self._format_reproduction_steps()
                 self.bugs.extend(screenshot_bugs)
                 if screenshot_bugs:
                     print(f"      🔍 Found {len(screenshot_bugs)} visual issues at scroll position {scroll_position}px")
@@ -402,9 +413,12 @@ class StructuredExplorer:
                     if error:
                         print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
-                        # Update screenshot paths in the bug evidence
+                        # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in form_bugs:
                             bug.evidence.screenshot_path = screenshot_path
+                            # Populate reproduction steps from action recorder
+                            if self.action_recorder:
+                                bug.reproduction_steps = self._format_reproduction_steps()
                         self.bugs.extend(form_bugs)
                         if form_bugs:
                             print(f"      🔍 Found {len(form_bugs)} visual issues in form {form_index + 1}")
@@ -702,9 +716,12 @@ class StructuredExplorer:
                     if error:
                         print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
-                        # Update screenshot paths in the bug evidence
+                        # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in dropdown_bugs:
                             bug.evidence.screenshot_path = screenshot_path
+                            # Populate reproduction steps from action recorder
+                            if self.action_recorder:
+                                bug.reproduction_steps = self._format_reproduction_steps()
                         self.bugs.extend(dropdown_bugs)
                         if dropdown_bugs:
                             print(f"      🔍 Found {len(dropdown_bugs)} visual issues in dropdown")
@@ -875,9 +892,12 @@ class StructuredExplorer:
                     if error:
                         print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
-                        # Update screenshot paths in the bug evidence
+                        # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in modal_bugs:
                             bug.evidence.screenshot_path = screenshot_path
+                            # Populate reproduction steps from action recorder
+                            if self.action_recorder:
+                                bug.reproduction_steps = self._format_reproduction_steps()
                         self.bugs.extend(modal_bugs)
                         if modal_bugs:
                             print(f"      🔍 Found {len(modal_bugs)} visual issues in modal")
@@ -966,9 +986,12 @@ class StructuredExplorer:
                     if error:
                         print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
-                        # Update screenshot paths in the bug evidence
+                        # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in accordion_bugs:
                             bug.evidence.screenshot_path = screenshot_path
+                            # Populate reproduction steps from action recorder
+                            if self.action_recorder:
+                                bug.reproduction_steps = self._format_reproduction_steps()
                         self.bugs.extend(accordion_bugs)
                         if accordion_bugs:
                             print(f"      🔍 Found {len(accordion_bugs)} visual issues in accordion")
