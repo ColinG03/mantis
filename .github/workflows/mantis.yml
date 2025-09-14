@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main        # Change this to your deployment branch
-      - Test branch     # Add other branches that trigger deployments
+      - test_branch     # Add other branches that trigger deployments
   workflow_dispatch:
     inputs:
       url:
