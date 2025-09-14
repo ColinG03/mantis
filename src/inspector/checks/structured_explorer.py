@@ -208,11 +208,10 @@ class StructuredExplorer:
             context = f"viewport at scroll position {scroll_position}px"
             screenshot_bugs, error = await analyze_screenshot(
                 screenshot_path, 
-                context, 
                 viewport_key, 
                 page_url, 
-                self.model,
-                self.verbose
+                self.model,  # model parameter
+                self.verbose  # verbose parameter
             )
             if error:
                 if self.verbose:
@@ -457,7 +456,6 @@ class StructuredExplorer:
                     # Analyze form filled with edge case data
                     form_bugs, error = await analyze_screenshot(
                         screenshot_path, 
-                        f"form filled with edge case data",
                         viewport_key, 
                         page_url, 
                         self.model,
@@ -489,7 +487,9 @@ class StructuredExplorer:
         """Fill a single input with edge case data designed to test layout breaks"""
         try:
             selector = input_data['selector']
-            input_type = input_data['type'].lower()
+            # Safely handle type conversion - input.type can sometimes be boolean in certain browsers
+            raw_type = input_data.get('type', 'text')
+            input_type = str(raw_type).lower() if raw_type is not None else 'text'
             
             # First verify the element is visible and unique before attempting to fill
             locator = page.locator(selector)
@@ -763,7 +763,6 @@ class StructuredExplorer:
                     element_text = element_text or "unknown"
                     dropdown_bugs, error = await analyze_screenshot(
                         screenshot_path, 
-                        f"dropdown opened for {element_text}",
                         viewport_key, 
                         page_url, 
                         self.model,
@@ -938,7 +937,6 @@ class StructuredExplorer:
                     # Analyze modal open state
                     modal_bugs, error = await analyze_screenshot(
                         screenshot_path, 
-                        f"modal opened",
                         viewport_key, 
                         page_url, 
                         self.model,
@@ -1030,7 +1028,6 @@ class StructuredExplorer:
                     # Analyze accordion expanded state
                     accordion_bugs, error = await analyze_screenshot(
                         screenshot_path, 
-                        f"accordion expanded",
                         viewport_key, 
                         page_url, 
                         self.model,

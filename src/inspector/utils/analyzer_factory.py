@@ -14,7 +14,6 @@ except ImportError:
 
 async def analyze_screenshot(
     screenshot_path: str, 
-    context: str, 
     viewport: str, 
     page_url: str, 
     model: str = 'cohere',
@@ -25,7 +24,6 @@ async def analyze_screenshot(
     
     Args:
         screenshot_path: Path to the screenshot file
-        context: Description of what just happened (e.g., "after clicking Home dropdown")
         viewport: Viewport size (e.g., "1280x800")
         page_url: URL being tested
         model: Which model to use ('cohere' or 'gemini')
@@ -36,14 +34,13 @@ async def analyze_screenshot(
         - error_message: None if successful, error string if API failed
     """
     if model.lower() == 'gemini':
-        return await _analyze_with_gemini(screenshot_path, context, viewport, page_url, verbose)
+        return await _analyze_with_gemini(screenshot_path, viewport, page_url, verbose)
     else:  # Default to cohere
-        return await _analyze_with_cohere(screenshot_path, context, viewport, page_url, verbose)
+        return await _analyze_with_cohere(screenshot_path, viewport, page_url, verbose)
 
 
 async def _analyze_with_gemini(
     screenshot_path: str, 
-    context: str, 
     viewport: str, 
     page_url: str,
     verbose: bool = False
@@ -51,7 +48,7 @@ async def _analyze_with_gemini(
     """Analyze screenshot using Gemini model"""
     try:
         from .gemini_analyzer import analyze_screenshot as gemini_analyze
-        return await gemini_analyze(screenshot_path, context, viewport, page_url)
+        return await gemini_analyze(screenshot_path, viewport, page_url, verbose)
     except ImportError as e:
         return [], f"Gemini analyzer not available: {str(e)}"
     except Exception as e:
@@ -60,7 +57,6 @@ async def _analyze_with_gemini(
 
 async def _analyze_with_cohere(
     screenshot_path: str, 
-    context: str, 
     viewport: str, 
     page_url: str,
     verbose: bool = False
@@ -83,7 +79,7 @@ async def _analyze_with_cohere(
         
         # Cohere analyzer expects base64 image data, viewport description, and URL
         viewport_desc = f"viewport {viewport}"
-        bugs, error = await cohere_analyze(image_data, viewport_desc, page_url)
+        bugs, error = await cohere_analyze(image_data, viewport_desc, page_url, verbose)
         return bugs, error if error else None
         
     except ImportError as e:

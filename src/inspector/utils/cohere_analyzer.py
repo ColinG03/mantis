@@ -52,7 +52,7 @@ class CohereAnalyzer:
             "max_tokens": 4000,  # Command-A-Vision supports up to 8K output tokens
         }
     
-    async def analyze_screenshot(self, image_data: str, viewport: str, page_url: str) -> Tuple[List[Bug], str]:
+    async def analyze_screenshot(self, image_data: str, viewport: str, model: str,page_url: str) -> Tuple[List[Bug], str]:
         """
         Analyze a screenshot for visual layout issues and UX problems.
         
@@ -246,7 +246,9 @@ EXAMPLE OUTPUT (when issues exist):
                 if bug_type != 'UI': 
                     bug_type = 'UI'
                 
-                severity = item.get('severity', 'medium').lower()
+                # Safely handle severity conversion - LLM responses can sometimes return unexpected types
+                raw_severity = item.get('severity', 'medium')
+                severity = str(raw_severity).lower() if raw_severity is not None else 'medium'
                 if severity not in ['low', 'medium', 'high', 'critical']:
                     severity = 'medium'  # Default fallback
                 
@@ -287,7 +289,7 @@ EXAMPLE OUTPUT (when issues exist):
 
 
 # Convenience function for backward compatibility
-async def analyze_screenshot(image_path_or_data: str, viewport: str, page_url: str, api_key: Optional[str] = None, verbose: bool = False) -> Tuple[List[Bug], str]:
+async def analyze_screenshot(image_path_or_data: str, viewport: str, page_url: str, verbose: bool = False) -> Tuple[List[Bug], str]:
     """
     Analyze a screenshot using Cohere vision model.
     

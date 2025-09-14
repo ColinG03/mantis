@@ -203,7 +203,7 @@ EXAMPLE OUTPUT (when issues exist):
                 print(f"Warning: Error parsing Gemini response: {str(e)}")
             return []
     
-    async def analyze_screenshot(self, screenshot_path: str, context: str, viewport: str, page_url: str) -> Tuple[List[Bug], Optional[str]]:
+    async def analyze_screenshot(self, screenshot_path: str, viewport: str, page_url: str, model: str, verbose: bool = False) -> Tuple[List[Bug], Optional[str]]:
         """
         Analyze a screenshot for visual layout issues and severe UX problems.
         

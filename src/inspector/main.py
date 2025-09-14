@@ -184,7 +184,7 @@ class Inspector(InspectorInterface):
         try:
             if self.verbose:
                 print(f"🔍 Running accessibility scan for {url}")
-            accessibility_scanner = AccessibilityScanner(self.output_dir, self.verbose)
+            accessibility_scanner = AccessibilityScanner(self.output_dir)
             
             # Run multi-viewport accessibility scan to catch responsive design issues
             accessibility_result = await accessibility_scanner.scan_all_viewports(page, url)
