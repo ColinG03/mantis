@@ -24,6 +24,9 @@ class LinkDetector:
             List of unique URLs found on the page
         """
         try:
+            # Wait a bit longer for client-side JavaScript to execute (especially for Next.js)
+            await self.page.wait_for_timeout(2000)
+            
             # Get all links from the page
             raw_links = await self._extract_all_links()
             
@@ -64,7 +67,7 @@ class LinkDetector:
                 // Extract URLs from onclick handlers
                 const onclick = element.getAttribute('onclick');
                 if (onclick) {
-                    const urlMatch = onclick.match(/(?:location\.href|window\.open|navigate)\s*=?\s*['"`]([^'"`]+)['"`]/);
+                    const urlMatch = onclick.match(/(?:window\.location\.href|location\.href|window\.open|navigate)\s*=?\s*['"`]([^'"`]+)['"`]/);
                     if (urlMatch) {
                         links.push(urlMatch[1]);
                     }
@@ -286,7 +289,6 @@ class LinkDetector:
             
             // Method 1: Check for React Router in window
             if (window.__REACT_ROUTER__) {
-                // Extract routes from router instance if available
                 try {
                     const router = window.__REACT_ROUTER__;
                     if (router.routes) {
@@ -297,9 +299,28 @@ class LinkDetector:
                 } catch (e) {}
             }
             
-            // Method 2: Look for navigation elements with React Router patterns
+            // Method 2: Check for Next.js router
+            if (window.__NEXT_DATA__ && window.__NEXT_DATA__.page) {
+                try {
+                    const page = window.__NEXT_DATA__.page;
+                    if (page && page !== '/') {
+                        routes.push(page);
+                    }
+                } catch (e) {}
+            }
+            
+            // Method 3: Look for navigation elements with React Router patterns
             const navElements = document.querySelectorAll('nav a, .nav a, [role="navigation"] a');
             navElements.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('http') && !href.startsWith('mailto:')) {
+                    routes.push(href);
+                }
+            });
+            
+            // Method 4: Look for Next.js Link components (they might have data attributes)
+            const nextLinks = document.querySelectorAll('[data-testid*="link"], [data-next-link]');
+            nextLinks.forEach(link => {
                 const href = link.getAttribute('href');
                 if (href && !href.startsWith('http') && !href.startsWith('mailto:')) {
                     routes.push(href);
@@ -321,40 +342,57 @@ class LinkDetector:
         () => {
             const routes = [];
             
-            // Get all script tags
-            const scripts = Array.from(document.scripts);
-            
-            for (const script of scripts) {
-                if (script.src && script.src.includes('index-')) {
-                    // This is likely the main bundle - we'll analyze its content
-                    try {
-                        // Look for common route patterns in the current page's HTML
-                        const pageContent = document.documentElement.innerHTML;
-                        
-                        // React Router patterns: to:"/about-me"
-                        const reactRoutes = pageContent.match(/to:"([^"]+)"/g);
-                        if (reactRoutes) {
-                            reactRoutes.forEach(match => {
-                                const route = match.match(/to:"([^"]+)"/)[1];
-                                if (route && route.startsWith('/')) {
-                                    routes.push(route);
-                                }
-                            });
+            try {
+                // Look for route patterns in the current page's HTML and scripts
+                const pageContent = document.documentElement.innerHTML;
+                
+                // Next.js App Router patterns: href="/about", href='/contact'
+                const nextHrefRoutes = pageContent.match(/href=["']\/[^"']*["']/g);
+                if (nextHrefRoutes) {
+                    nextHrefRoutes.forEach(match => {
+                        const route = match.match(/href=["'](\/[^"']*)["']/)[1];
+                        if (route && route !== '/' && !route.includes('_next') && !route.includes('.')) {
+                            routes.push(route);
                         }
-                        
-                        // Vue Router patterns: path:"/about"
-                        const vueRoutes = pageContent.match(/path:"([^"]+)"/g);
-                        if (vueRoutes) {
-                            vueRoutes.forEach(match => {
-                                const route = match.match(/path:"([^"]+)"/)[1];
-                                if (route && route.startsWith('/')) {
-                                    routes.push(route);
-                                }
-                            });
-                        }
-                        
-                    } catch (e) {}
+                    });
                 }
+                
+                // React Router patterns: to:"/about-me"
+                const reactRoutes = pageContent.match(/to:"([^"]+)"/g);
+                if (reactRoutes) {
+                    reactRoutes.forEach(match => {
+                        const route = match.match(/to:"([^"]+)"/)[1];
+                        if (route && route.startsWith('/') && !route.includes('_next')) {
+                            routes.push(route);
+                        }
+                    });
+                }
+                
+                // Vue Router patterns: path:"/about"
+                const vueRoutes = pageContent.match(/path:"([^"]+)"/g);
+                if (vueRoutes) {
+                    vueRoutes.forEach(match => {
+                        const route = match.match(/path:"([^"]+)"/)[1];
+                        if (route && route.startsWith('/') && !route.includes('_next')) {
+                            routes.push(route);
+                        }
+                    });
+                }
+                
+                // Look for Next.js page files in script sources
+                const scripts = Array.from(document.scripts);
+                scripts.forEach(script => {
+                    if (script.src && script.src.includes('/app/')) {
+                        // Extract potential page routes from Next.js app directory structure
+                        const matches = script.src.match(/\/app\/([^\/]+)\/page-/);
+                        if (matches && matches[1] !== 'page') {
+                            routes.push('/' + matches[1]);
+                        }
+                    }
+                });
+                
+            } catch (e) {
+                console.log('Error parsing bundles:', e);
             }
             
             return [...new Set(routes)]; // Remove duplicates
@@ -372,14 +410,34 @@ class LinkDetector:
         () => {
             const routes = [];
             
-            // Look for navigation patterns
+            // Look for navigation patterns (including Next.js navigation)
             const selectors = [
                 'nav a[href]',
                 '.navbar a[href]',
                 '.navigation a[href]',
                 '[role="navigation"] a[href]',
                 '.menu a[href]',
-                '.nav-links a[href]'
+                '.nav-links a[href]',
+                // Next.js specific patterns - look for clickable navigation elements
+                'nav div[class*="cursor-pointer"]',
+                '.navbar div[class*="cursor-pointer"]',
+                '.navigation div[class*="cursor-pointer"]',
+                '[role="navigation"] div[class*="cursor-pointer"]',
+                '.menu div[class*="cursor-pointer"]',
+                '.nav-links div[class*="cursor-pointer"]',
+                // Common Next.js navigation container patterns
+                '.bg-gray-800 div[class*="cursor-pointer"]',
+                'div[class*="flex"] div[class*="cursor-pointer"]',
+                // Button-based navigation (common in modern React apps)
+                'nav button',
+                '.navbar button',
+                '.navigation button',
+                '[role="navigation"] button',
+                '.menu button',
+                '.nav-links button',
+                // Sidebar navigation patterns
+                'div[class*="space-y"] button',
+                'div[class*="flex-col"] button'
             ];
             
             selectors.forEach(selector => {
@@ -393,6 +451,36 @@ class LinkDetector:
                             !href.startsWith('tel:') &&
                             !href.startsWith('javascript:')) {
                             routes.push(href);
+                        } else if (!href && link.textContent) {
+                            // For Next.js navigation divs, infer routes from text content dynamically
+                            const text = link.textContent.trim();
+                            const cleanText = text.toLowerCase().replace(/[^\w\s]/g, '').trim();
+                            
+                            // Skip empty or very short text
+                            if (cleanText.length < 2) return;
+                            
+                            // Handle special cases first
+                            if (cleanText.includes('home') || text.includes('🏠')) {
+                                routes.push('/');
+                                return;
+                            }
+                            
+                            // For other navigation items, create route from the text
+                            // Remove common words and clean up
+                            const words = cleanText.split(/\s+/).filter(word => 
+                                word.length > 1 && 
+                                !['the', 'and', 'or', 'of', 'to', 'in', 'a', 'an'].includes(word)
+                            );
+                            
+                            if (words.length > 0) {
+                                const routeName = words[0];
+                                
+                                // Filter out common UI controls that aren't navigation routes
+                                const uiControls = ['sign', 'login', 'logout', 'dark', 'light', 'theme', 'toggle', 'menu', 'close', 'open', 'search'];
+                                if (!uiControls.includes(routeName)) {
+                                    routes.push('/' + routeName);
+                                }
+                            }
                         }
                     });
                 } catch (e) {}
