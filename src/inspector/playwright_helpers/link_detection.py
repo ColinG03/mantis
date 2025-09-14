@@ -30,6 +30,10 @@ class LinkDetector:
             # Process and filter links
             processed_links = self._process_links(raw_links)
             
+            # Check for SPA routes and add them
+            spa_routes = await self._discover_spa_routes()
+            processed_links.extend(spa_routes)
+            
             # Remove duplicates and return
             return list(set(processed_links))
             

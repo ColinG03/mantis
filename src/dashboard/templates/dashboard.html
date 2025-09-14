@@ -109,7 +109,14 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-list"></i> Bug Details <span id="bug-count-badge" class="badge bg-high ms-2">{{ report.bugs_total if report else 0 }}</span></h5>
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Bug Details <span id="bug-count-badge" class="badge bg-high ms-2">{{ report.bugs_total if report else 0 }}</span></h5>
+                    <div class="filter-controls">
+                        <select id="page-filter" class="form-select form-select-sm" style="width: auto; min-width: 200px;">
+                            <option value="all">All Pages</option>
+                        </select>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -127,7 +134,7 @@
                         <tbody id="bugs-tbody">
                             {% if report and report.findings %}
                                 {% for bug in report.findings %}
-                                <tr>
+                                <tr class="bug-row" data-page-url="{{ bug.page_url }}">
                                     <td>
                                         <span class="badge bg-{% if bug.severity == 'critical' %}critical{% elif bug.severity == 'high' %}high{% elif bug.severity == 'medium' %}medium{% else %}low{% endif %}">
                                             {{ bug.severity|title }}
@@ -178,7 +185,7 @@
                                     </td>
                                 </tr>
                                 <!-- Expandable bug details row -->
-                                <tr>
+                                <tr class="bug-details-row" data-page-url="{{ bug.page_url }}">
                                     <td colspan="6" class="p-0">
                                         <div class="collapse" id="bug-details-{{ loop.index }}">
                                             <div class="card card-body mx-3 mb-3">
