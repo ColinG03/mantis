@@ -183,7 +183,7 @@ class URLUtils:
                     # Extract main content type (remove charset and other parameters)
                     return content_type.split(';')[0].strip()
         except Exception as e:
-            print(f"Failed to check content type for {url}: {e}")
+            # Silently fail - content type check is optional
             return None
     
     @staticmethod

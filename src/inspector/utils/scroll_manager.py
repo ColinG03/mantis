@@ -18,7 +18,7 @@ class ScrollManager:
     - Dynamic content detection
     """
     
-    def __init__(self, page: Page, viewport_height: int, config: Dict[str, Any] = None):
+    def __init__(self, page: Page, viewport_height: int, config: Dict[str, Any] = None, verbose: bool = False):
         """
         Initialize scroll manager.
         
@@ -29,6 +29,7 @@ class ScrollManager:
         """
         self.page = page
         self.viewport_height = viewport_height
+        self.verbose = verbose
         
         # Default configuration
         default_config = {
@@ -79,15 +80,18 @@ class ScrollManager:
             is_scrollable = self.total_scrollable_height > viewport_height
             
             if is_scrollable:
-                print(f"    📏 Page is scrollable: {self.total_scrollable_height}px total, {viewport_height}px viewport")
-                print(f"    📐 Scroll amount: {self.scroll_amount}px ({self.config['overlap_percentage']}% overlap)")
+                if self.verbose:
+                    print(f"    Page is scrollable: {self.total_scrollable_height}px total, {viewport_height}px viewport")
+                    print(f"    Scroll amount: {self.scroll_amount}px ({self.config['overlap_percentage']}% overlap)")
             else:
-                print(f"    📏 Page fits in viewport: {self.total_scrollable_height}px total")
+                if self.verbose:
+                    print(f"    Page fits in viewport: {self.total_scrollable_height}px total")
             
             return is_scrollable
             
         except Exception as e:
-            print(f"    ⚠️  Failed to initialize scroll manager: {str(e)}")
+            if self.verbose:
+                print(f"    ⚠️  Failed to initialize scroll manager: {str(e)}")
             return False
     
     async def scroll_to_next_position(self) -> bool:
@@ -99,7 +103,8 @@ class ScrollManager:
         """
         # Check if we've reached maximum iterations
         if self.scroll_iterations >= self.config['max_scrolls']:
-            print(f"    📜 Reached maximum scroll iterations ({self.config['max_scrolls']})")
+            if self.verbose:
+                print(f"     Reached maximum scroll iterations ({self.config['max_scrolls']})")
             return False
         
         # Calculate next scroll position
@@ -108,7 +113,8 @@ class ScrollManager:
         # Check if we can actually scroll further
         can_scroll_more = await self._can_scroll_to_position(next_position)
         if not can_scroll_more:
-            print(f"    📜 Reached bottom of page at position {self.current_position}px")
+            if self.verbose:
+                print(f"     Reached bottom of page at position {self.current_position}px")
             return False
         
         # Perform the scroll
@@ -120,9 +126,7 @@ class ScrollManager:
             actual_position = await self.page.evaluate("() => window.pageYOffset || document.documentElement.scrollTop")
             self.current_position = actual_position
             self.scroll_iterations += 1
-            
-            print(f"    📜 Scrolled to position {self.current_position}px (iteration {self.scroll_iterations})")
-            
+                        
             # Check for dynamic content if enabled
             if self.config['dynamic_content_detection']:
                 await self._check_for_dynamic_content()
@@ -130,7 +134,8 @@ class ScrollManager:
             return True
             
         except Exception as e:
-            print(f"    ⚠️  Failed to scroll to position {next_position}: {str(e)}")
+            if self.verbose:
+                print(f"    ⚠️  Failed to scroll to position {next_position}: {str(e)}")
             return False
     
     async def _can_scroll_to_position(self, position: int) -> bool:
@@ -164,13 +169,11 @@ class ScrollManager:
             # 2. Target position is greater than current position (moving forward)
             can_scroll = position <= max_scroll and position > current_scroll
             
-            if not can_scroll:
-                print(f"    📜 Cannot scroll to {position}px (max: {max_scroll}px, current: {current_scroll}px)")
-            
             return can_scroll
             
         except Exception as e:
-            print(f"    ⚠️  Error checking scroll position: {str(e)}")
+            if self.verbose:
+                print(f"    ⚠️  Error checking scroll position: {str(e)}")
             return False
     
     async def _check_for_dynamic_content(self):
@@ -185,10 +188,12 @@ class ScrollManager:
                 height_diff = current_height - self.last_content_height
                 self.total_scrollable_height = current_height
                 self.last_content_height = current_height
-                print(f"    🔄 Dynamic content detected: +{height_diff}px (total: {current_height}px)")
+                if self.verbose:
+                    print(f"    🔄 Dynamic content detected: +{height_diff}px (total: {current_height}px)")
             
         except Exception as e:
-            print(f"    ⚠️  Error checking dynamic content: {str(e)}")
+            if self.verbose:
+                print(f"    ⚠️  Error checking dynamic content: {str(e)}")
     
     async def reset_to_top(self):
         """Reset scroll position to top of page."""
@@ -197,10 +202,12 @@ class ScrollManager:
             await asyncio.sleep(0.3)
             self.current_position = 0
             self.scroll_iterations = 0
-            print(f"    📜 Reset to top of page")
+            if self.verbose:
+                print(f"     Reset to top of page")
             
         except Exception as e:
-            print(f"    ⚠️  Failed to reset scroll position: {str(e)}")
+            if self.verbose:
+                print(f"    ⚠️  Failed to reset scroll position: {str(e)}")
     
     def get_scroll_info(self) -> Dict[str, Any]:
         """

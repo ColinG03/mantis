@@ -81,11 +81,11 @@ async def test_inspector(url: str = "https://example.com"):
             for i, bug in enumerate(result.findings[:3], 1):
                 print(f"  {i}. [{bug.severity.upper()}] {bug.summary}")
                 if bug.evidence.screenshot_path:
-                    print(f"     📸 Screenshot: {bug.evidence.screenshot_path}")
+                    print(f"     Screenshot: {bug.evidence.screenshot_path}")
                 if bug.evidence.console_log:
                     # Show first line of console log
                     first_log_line = bug.evidence.console_log.split('\n')[0]
-                    print(f"     📝 Console: {first_log_line}")
+                    print(f"     Console: {first_log_line}")
             
             if len(result.findings) > 3:
                 print(f"  ... and {len(result.findings) - 3} more issues")
