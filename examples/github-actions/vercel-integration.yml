@@ -1,0 +1,37 @@
+# Example: Scan Vercel deployments automatically
+# Copy this file to .github/workflows/mantis-vercel.yml in your repository
+
+name: Mantis Scan on Vercel Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  wait-for-vercel:
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.vercel.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Wait for Vercel deployment
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.1
+        id: vercel
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 600
+
+  mantis-scan:
+    needs: wait-for-vercel
+    if: needs.wait-for-vercel.outputs.url != ''
+    uses: ColinG03/mantis/.github/workflows/mantis-scan.yml@v1
+    with:
+      url: ${{ needs.wait-for-vercel.outputs.url }}
+      max_depth: 3
+      max_pages: 50
+      scan_type: "all"
+      fail_on: "critical"  # Fail CI if critical issues found
+    secrets:
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}

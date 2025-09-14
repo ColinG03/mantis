@@ -262,9 +262,9 @@ Examples:
         failed_count = len(report.pages) - success_count
         
         if success_count > 0:
-            print(f"  ✅ Successful: {success_count}")
+            print(f"  Successful: {success_count}")
         if failed_count > 0:
-            print(f"  ❌ Failed: {failed_count}")
+            print(f"  Failed: {failed_count}")
         
         print(f"{'='*60}")
     
@@ -290,20 +290,20 @@ Examples:
         try:
             from dashboard.server import DashboardServer
             
-            print(f"\n🌐 Launching dashboard at http://localhost:8080...")
+            print(f"\nLaunching dashboard at http://localhost:8080...")
             dashboard = DashboardServer(port=8080, output_dir=output_dir)
             dashboard.load_report(report)
             
-            print(f"💡 Dashboard will open automatically in your browser")
-            print(f"🛑 Press Ctrl+C to stop the dashboard")
+            print(f"Dashboard will open automatically in your browser")
+            print(f"Press Ctrl+C to stop the dashboard")
             
             # Start dashboard (blocking)
             dashboard.start_server(open_browser=True, blocking=True)
             
         except ImportError:
-            print(f"❌ Dashboard not available - Flask not installed")
+            print(f"Dashboard not available - Flask not installed")
         except Exception as e:
-            print(f"❌ Error launching dashboard: {e}")
+            print(f"Error launching dashboard: {e}")
 
 
 async def main():
@@ -352,10 +352,10 @@ async def main():
                     sys.exit(1)
         
     except KeyboardInterrupt:
-        print(f"\n⚠️  Crawl interrupted by user")
+        print(f"\nCrawl interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         sys.exit(1)
 
 

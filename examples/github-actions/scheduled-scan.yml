@@ -1,0 +1,33 @@
+# Example: Regular scheduled scans of production site
+# Copy this file to .github/workflows/mantis-scheduled.yml in your repository
+
+name: Weekly Mantis Scan
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9 AM UTC
+  workflow_dispatch:
+
+jobs:
+  production-scan:
+    uses: ColinG03/mantis/.github/workflows/mantis-scan.yml@v1
+    with:
+      url: https://your-production-site.com
+      max_depth: 3
+      max_pages: 100
+      scan_type: "all"
+      fail_on: "high"
+      verbose: true
+    secrets:
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+
+  staging-scan:
+    uses: ColinG03/mantis/.github/workflows/mantis-scan.yml@v1
+    with:
+      url: https://staging.your-site.com
+      max_depth: 2
+      max_pages: 50
+      scan_type: "accessibility"  # Focus on accessibility for staging
+      fail_on: "none"
+    secrets:
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}

@@ -1,0 +1,299 @@
+name: Mantis Scan (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      url:
+        description: "URL to scan"
+        required: true
+        type: string
+      max_depth:
+        description: "Maximum crawl depth"
+        required: false
+        type: number
+        default: 2
+      max_pages:
+        description: "Maximum pages to crawl"
+        required: false
+        type: number
+        default: 25
+      scan_type:
+        description: "Type of scan (all, accessibility, ui, interactive, performance)"
+        required: false
+        type: string
+        default: "all"
+      fail_on:
+        description: "Fail workflow on severity level (none, high, critical)"
+        required: false
+        type: string
+        default: "none"
+      verbose:
+        description: "Enable verbose logging"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      COHERE_API_KEY:
+        description: "Cohere API key for AI analysis"
+        required: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    
+    steps:
+      - name: 🧾 Checkout Mantis
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.action_repository || 'ColinG03/mantis' }}
+          ref: ${{ github.action_ref || 'main' }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: 📦 Install Mantis and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Install mantis from the current repository
+          pip install -e .
+          # Install required dependencies
+          pip install playwright axe-playwright-python
+
+      - name: 🎭 Install Playwright browser
+        run: |
+          python -m playwright install --with-deps chromium
+
+      - name: 🚀 Run Mantis scan
+        id: mantis
+        env:
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+        run: |
+          set -euo pipefail
+          
+          echo "🔍 Scanning ${{ inputs.url }}"
+          
+          # Build command with options
+          VERBOSE_FLAG=""
+          if [[ "${{ inputs.verbose }}" == "true" ]]; then
+            VERBOSE_FLAG="--verbose"
+          fi
+          
+          # Run scan
+          mantis run "${{ inputs.url }}" \
+            --max-depth ${{ inputs.max_depth }} \
+            --max-pages ${{ inputs.max_pages }} \
+            --scan-type ${{ inputs.scan_type }} \
+            --output mantis_report.json \
+            ${VERBOSE_FLAG} || echo "Scan completed with issues"
+          
+          # Verify output exists
+          if [[ ! -f "mantis_report.json" ]]; then
+            echo "❌ Report file not found"
+            exit 1
+          fi
+          
+          # Install jq for parsing if not available
+          if ! command -v jq >/dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+          
+          # Parse results
+          TOTAL=$(jq '.bugs_total // 0' mantis_report.json)
+          CRITICAL=$(jq '[.findings[]? | select(.severity=="critical")] | length' mantis_report.json)
+          HIGH=$(jq '[.findings[]? | select(.severity=="high")] | length' mantis_report.json)
+          MEDIUM=$(jq '[.findings[]? | select(.severity=="medium")] | length' mantis_report.json)
+          LOW=$(jq '[.findings[]? | select(.severity=="low")] | length' mantis_report.json)
+          PAGES=$(jq '.pages_total // 0' mantis_report.json)
+          
+          # Set outputs
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+          echo "low=$LOW" >> $GITHUB_OUTPUT
+          echo "pages=$PAGES" >> $GITHUB_OUTPUT
+          
+          echo "📊 Found $TOTAL issues across $PAGES pages"
+
+      - name: 📝 Generate HTML report
+        run: |
+          python - <<'EOF'
+          import json, html, os
+          
+          with open('mantis_report.json', 'r') as f:
+              data = json.load(f)
+          
+          findings = data.get('findings', [])
+          pages_total = data.get('pages_total', 0)
+          seed_url = data.get('seed_url', '')
+          scanned_at = data.get('scanned_at', '')
+          
+          def sev_color(severity):
+              colors = {
+                  "critical": "#dc2626", "high": "#ea580c", 
+                  "medium": "#ca8a04", "low": "#2563eb"
+              }
+              return colors.get(severity, "#6b7280")
+          
+          # Count by severity
+          counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+          for f in findings:
+              sev = f.get('severity', 'unknown')
+              if sev in counts:
+                  counts[sev] += 1
+          
+          # Generate table rows (limit to first 50)
+          rows = []
+          for i, bug in enumerate(findings[:50], 1):
+              severity = bug.get('severity', 'unknown')
+              bug_type = bug.get('type', '')
+              page_url = bug.get('page_url', '')
+              summary = bug.get('summary', '')
+              color = sev_color(severity)
+              
+              rows.append(f'''<tr>
+                  <td>{i}</td>
+                  <td><span style="color:{color};font-weight:bold">{html.escape(severity)}</span></td>
+                  <td>{html.escape(bug_type)}</td>
+                  <td><a href="{html.escape(page_url)}" target="_blank">{html.escape(page_url[:60])}{'...' if len(page_url) > 60 else ''}</a></td>
+                  <td>{html.escape(summary)}</td>
+              </tr>''')
+          
+          html_content = f'''<!doctype html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>🦗 Mantis Scan Report</title>
+              <style>
+                  body {{ font-family: system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }}
+                  .header {{ background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 24px; }}
+                  .stats {{ display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }}
+                  .stat {{ background: white; padding: 16px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center; }}
+                  .stat-value {{ font-size: 24px; font-weight: bold; margin: 0 0 4px; }}
+                  .stat-label {{ font-size: 14px; color: #64748b; }}
+                  .critical .stat-value {{ color: #dc2626; }}
+                  .high .stat-value {{ color: #ea580c; }}
+                  .medium .stat-value {{ color: #ca8a04; }}
+                  .low .stat-value {{ color: #2563eb; }}
+                  .total .stat-value {{ color: #1e293b; }}
+                  table {{ width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+                  th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }}
+                  th {{ background: #f8fafc; font-weight: 600; position: sticky; top: 0; }}
+                  tr:hover {{ background: #f8fafc; }}
+                  a {{ color: #2563eb; text-decoration: none; }}
+                  a:hover {{ text-decoration: underline; }}
+                  .no-issues {{ text-align: center; padding: 60px 20px; color: #64748b; }}
+                  .meta {{ color: #64748b; font-size: 14px; margin-bottom: 16px; }}
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>🦗 Mantis Web Accessibility & UI Scan</h1>
+                  <div class="meta">
+                      <strong>URL:</strong> {html.escape(seed_url)}<br>
+                      <strong>Pages Scanned:</strong> {pages_total}<br>
+                      <strong>Scanned At:</strong> {html.escape(scanned_at)}
+                  </div>
+                  <div class="stats">
+                      <div class="stat total">
+                          <div class="stat-value">{len(findings)}</div>
+                          <div class="stat-label">Total Issues</div>
+                      </div>
+                      <div class="stat critical">
+                          <div class="stat-value">{counts['critical']}</div>
+                          <div class="stat-label">Critical</div>
+                      </div>
+                      <div class="stat high">
+                          <div class="stat-value">{counts['high']}</div>
+                          <div class="stat-label">High</div>
+                      </div>
+                      <div class="stat medium">
+                          <div class="stat-value">{counts['medium']}</div>
+                          <div class="stat-label">Medium</div>
+                      </div>
+                      <div class="stat low">
+                          <div class="stat-value">{counts['low']}</div>
+                          <div class="stat-label">Low</div>
+                      </div>
+                  </div>
+              </div>
+              
+              {f'<table><thead><tr><th>#</th><th>Severity</th><th>Type</th><th>Page</th><th>Summary</th></tr></thead><tbody>{"".join(rows)}</tbody></table>' if findings else '<div class="no-issues"><h2>✅ No Issues Found!</h2><p>Your website passed all accessibility and UI checks.</p></div>'}
+              
+              {f'<p style="margin-top: 20px; color: #64748b; font-size: 14px;">Showing first 50 of {len(findings)} issues.</p>' if len(findings) > 50 else ''}
+          </body>
+          </html>'''
+          
+          with open('mantis_report.html', 'w', encoding='utf-8') as f:
+              f.write(html_content)
+          
+          print("✅ Generated HTML report")
+          EOF
+
+      - name: 📎 Upload scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: mantis-scan-report-${{ github.run_number }}
+          path: |
+            mantis_report.json
+            mantis_report.html
+          retention-days: 30
+
+      - name: 📋 Create summary
+        run: |
+          echo "## 🦗 Mantis Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**🌐 Scanned URL:** [\`${{ inputs.url }}\`](${{ inputs.url }})" >> $GITHUB_STEP_SUMMARY
+          echo "**📄 Pages Analyzed:** ${{ steps.mantis.outputs.pages }}" >> $GITHUB_STEP_SUMMARY
+          echo "**🔍 Scan Type:** ${{ inputs.scan_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Issue Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 Critical | ${{ steps.mantis.outputs.critical }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟠 High | ${{ steps.mantis.outputs.high }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟡 Medium | ${{ steps.mantis.outputs.medium }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔵 Low | ${{ steps.mantis.outputs.low }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **📈 Total** | **${{ steps.mantis.outputs.total }}** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.mantis.outputs.total }}" == "0" ]]; then
+            echo "### ✅ Excellent! No accessibility or UI issues detected." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### 🔍 Issues Found" >> $GITHUB_STEP_SUMMARY
+            echo "Download the **mantis-scan-report-${{ github.run_number }}** artifact for detailed analysis." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📎 **Artifacts:** JSON report + Interactive HTML dashboard available for download" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🚦 Quality gate
+        if: inputs.fail_on != 'none'
+        run: |
+          CRITICAL=${{ steps.mantis.outputs.critical }}
+          HIGH=${{ steps.mantis.outputs.high }}
+          TOTAL=${{ steps.mantis.outputs.total }}
+          
+          case "${{ inputs.fail_on }}" in
+            critical)
+              if [[ "$CRITICAL" -gt 0 ]]; then
+                echo "❌ Quality gate failed: $CRITICAL critical issues found"
+                exit 1
+              fi
+              ;;
+            high)
+              if [[ "$CRITICAL" -gt 0 ]] || [[ "$HIGH" -gt 0 ]]; then
+                echo "❌ Quality gate failed: $CRITICAL critical, $HIGH high severity issues found"
+                exit 1
+              fi
+              ;;
+          esac
+          
+          echo "✅ Quality gate passed: All issues below threshold (${{ inputs.fail_on }})"
