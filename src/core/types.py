@@ -52,6 +52,11 @@ class Bug:
     category: Optional[BugCategory] = None
     estimated_effort: Optional[str] = None  # "1 hour", "1 day", "1 week", etc.
     tags: List[str] = field(default_factory=list)  # Custom tags for filtering
+    
+    # Deduplication metadata
+    is_deduplicated: bool = False  # True if this bug was created by merging duplicates
+    original_bug_ids: List[str] = field(default_factory=list)  # IDs of bugs that were merged into this one
+    deduplication_reason: Optional[str] = None  # Reason why bugs were considered duplicates
 
 @dataclass
 class PageResult:

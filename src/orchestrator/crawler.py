@@ -157,6 +157,9 @@ class Crawler:
         
         report = self._build_crawl_report(seed_url, page_results, pages_info)
         
+        # Deduplicate bugs if we have any
+        if report.findings:
+            report = await self._deduplicate_bugs(report, inspector)
         
         self.logger.info(f"Final report: {report.pages_total} pages, {report.bugs_total} bugs found")
         return report
@@ -237,3 +240,45 @@ class Crawler:
         )
         
         return report
+    
+    async def _deduplicate_bugs(self, report: CrawlReport, inspector: Inspector) -> CrawlReport:
+        """
+        Deduplicate bugs in the crawl report using the same model that was used for scanning.
+        
+        Args:
+            report: Original crawl report with potentially duplicate bugs
+            inspector: Inspector instance to get the model configuration
+            
+        Returns:
+            Updated crawl report with deduplicated bugs
+        """
+        try:
+            # Import the deduplicator
+            from inspector.utils.bug_deduplicator import BugDeduplicator
+            
+            # Get the model from the inspector's scan config
+            model = getattr(inspector, 'scan_config', None)
+            model_name = model.model if model else 'cohere'
+            
+            self.logger.info(f"🔍 Starting bug deduplication using {model_name} model...")
+            
+            # Create deduplicator and process bugs
+            deduplicator = BugDeduplicator(model=model_name)
+            deduplicated_bugs = await deduplicator.deduplicate_bugs(report.findings)
+            
+            # Update the report
+            original_count = len(report.findings)
+            report.findings = deduplicated_bugs
+            report.bugs_total = len(deduplicated_bugs)
+            
+            if original_count != len(deduplicated_bugs):
+                self.logger.info(f"✅ Deduplication reduced bugs from {original_count} to {len(deduplicated_bugs)}")
+            else:
+                self.logger.info("ℹ️ No duplicate bugs found")
+            
+            return report
+            
+        except Exception as e:
+            self.logger.error(f"❌ Bug deduplication failed: {str(e)}")
+            self.logger.info("Continuing with original bug list")
+            return report
