@@ -9,14 +9,9 @@ import uuid
 from typing import List, Dict, Any, Optional
 from playwright.async_api import Page
 
-try:
-    from ...core.types import Bug, Evidence
-    from .base_scanner import BaseScanner, BaseScanResult
-    from ..utils.performance import PerformanceTracker
-except ImportError:
-    from core.types import Bug, Evidence
-    from inspector.checks.base_scanner import BaseScanner, BaseScanResult
-    from inspector.utils.performance import PerformanceTracker
+from core.types import Bug, Evidence
+from inspector.checks.base_scanner import BaseScanner, BaseScanResult
+from inspector.utils.performance import PerformanceTracker
 
 
 class PerformanceScanResult(BaseScanResult):
@@ -72,9 +67,10 @@ class PerformanceScanner(BaseScanner):
         3.0: 'critical',  # 3x threshold = critical
     }
     
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, verbose: bool = False):
         super().__init__(output_dir)
         self.performance_tracker = PerformanceTracker()
+        self.verbose = verbose
     
     @property
     def scan_type(self) -> str:

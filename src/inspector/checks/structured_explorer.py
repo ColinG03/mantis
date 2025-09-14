@@ -4,24 +4,16 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from playwright.async_api import Page
 
-try:
-    from ...core.types import Bug, Evidence, PageResult
-    from ..utils.evidence import EvidenceCollector
-    from ..utils.performance import PerformanceTracker
-    from ..utils.action_recorder import ActionRecorder
-    from ..utils.analyzer_factory import analyze_screenshot
-    from ..utils.scroll_manager import ScrollManager
-    from ..utils.interaction_tracker import InteractionTracker
-    from ..playwright_helpers.link_detection import LinkDetector
-except ImportError:
-    from core.types import Bug, Evidence, PageResult
-    from inspector.utils.evidence import EvidenceCollector
-    from inspector.utils.performance import PerformanceTracker
-    from inspector.utils.action_recorder import ActionRecorder
-    from inspector.utils.analyzer_factory import analyze_screenshot
-    from inspector.utils.scroll_manager import ScrollManager
-    from inspector.utils.interaction_tracker import InteractionTracker
-    from inspector.playwright_helpers.link_detection import LinkDetector
+
+from core.types import Bug, Evidence, PageResult
+from inspector.utils.evidence import EvidenceCollector
+from inspector.utils.performance import PerformanceTracker
+from inspector.utils.action_recorder import ActionRecorder
+from inspector.utils.analyzer_factory import analyze_screenshot
+from inspector.utils.scroll_manager import ScrollManager
+from inspector.utils.interaction_tracker import InteractionTracker
+from inspector.playwright_helpers.link_detection import LinkDetector
+
 
 
 class StructuredExplorer:
@@ -37,14 +29,15 @@ class StructuredExplorer:
         {"name": "mobile", "width": 375, "height": 667}
     ]
     
-    def __init__(self, output_dir: str, model: str = 'cohere'):
+    def __init__(self, output_dir: str, model: str = 'cohere', verbose: bool = False):
         self.name = "Structured Explorer"
         self.description = "Direct page exploration with form testing and interactive element analysis"
         self.output_dir = output_dir
         self.model = model
+        self.verbose = verbose
         self.bugs = []
         self.action_recorder: Optional[ActionRecorder] = None
-        self.interaction_tracker = InteractionTracker()  # Track tested elements to prevent duplicates
+        self.interaction_tracker = InteractionTracker(verbose)  # Track tested elements to prevent duplicates
         self.navigation_metadata: Dict[str, Dict] = {}  # Store navigation metadata for action recording
     
     def _format_reproduction_steps(self) -> List[str]:
@@ -63,10 +56,9 @@ class StructuredExplorer:
         parsed = urlparse(page_url)
         if parsed.fragment:
             # Check if fragment looks like SPA route
-            try:
-                from ...orchestrator.url_utils import URLUtils
-            except ImportError:
-                from orchestrator.url_utils import URLUtils
+
+            from orchestrator.url_utils import URLUtils
+
             if URLUtils._is_spa_route('#' + parsed.fragment):
                 # This is an SPA route - try to find the navigation context
                 base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
@@ -105,14 +97,15 @@ class StructuredExplorer:
         """
         Run complete exploration of the page across all viewports.
         """
-        print(f"\n🔍 Starting direct exploration of {page_url}")
+        if self.verbose:
+            print(f"\n🔍 Starting direct exploration of {page_url}")
         
         # Initialize result
         result = PageResult(page_url=page_url)
         self.bugs = []
         
         # Set up evidence collection, performance tracking, and action recording
-        evidence_collector = EvidenceCollector(page, self.output_dir)
+        evidence_collector = EvidenceCollector(page, self.output_dir, self.verbose)
         performance_tracker = PerformanceTracker()
         self.action_recorder = ActionRecorder(page_url)
         
@@ -132,7 +125,8 @@ class StructuredExplorer:
                 viewport_name = viewport_config["name"]
                 viewport_key = f"{viewport_config['width']}x{viewport_config['height']}"
                 
-                print(f"\n📱 Exploring {viewport_name} viewport ({viewport_key})")
+                if self.verbose:
+                    print(f"\nExploring {viewport_name} viewport ({viewport_key})")
                 
                 # Set viewport size
                 await page.set_viewport_size({"width": viewport_config['width'], "height": viewport_config['height']})
@@ -165,7 +159,8 @@ class StructuredExplorer:
             )
             result.findings.append(bug)
             
-        print(f"✅ Exploration complete. Found {len(self.bugs)} potential issues.")
+        if self.verbose:
+            print(f"✅ Exploration complete. Found {len(self.bugs)} potential issues.")
         return result
     
     async def _explore_viewport(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
@@ -174,11 +169,12 @@ class StructuredExplorer:
         # Get viewport height for scroll manager
         viewport_config = next((v for v in self.DEFAULT_VIEWPORTS if v["name"] == viewport_name), None)
         if not viewport_config:
-            print(f"  ⚠️  Could not find viewport config for {viewport_name}")
+            if self.verbose:
+                print(f"  ⚠️  Could not find viewport config for {viewport_name}")
             return
         
         # Initialize scroll manager
-        scroll_manager = ScrollManager(page, viewport_config["height"])
+        scroll_manager = ScrollManager(page, viewport_config["height"], verbose=self.verbose)
         is_scrollable = await scroll_manager.initialize()
         
         # Record scroll manager setup
@@ -194,9 +190,7 @@ class StructuredExplorer:
     
     async def _explore_single_screen(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector, scroll_position: int):
         """Explore a single screen (non-scrollable page or one scroll position)"""
-        
-        print(f"  📸 Capturing {viewport_name} screenshot at scroll position {scroll_position}px")
-        
+                
         # Capture screenshot at current scroll position
         screenshot_path = await evidence_collector.capture_scroll_screenshot(scroll_position, viewport_key)
         
@@ -207,11 +201,13 @@ class StructuredExplorer:
                 screenshot_path, 
                 context, 
                 viewport_key, 
-                page_url,
-                self.model
+                page_url, 
+                self.model,
+                self.verbose
             )
             if error:
-                print(f"      ⚠️  {self.model.title()} analysis error: {error}")
+                if self.verbose:
+                    print(f"      ⚠️  {self.model.title()} analysis error: {error}")
             else:
                 # Update screenshot paths in the bug evidence and populate reproduction steps
                 for bug in screenshot_bugs:
@@ -221,7 +217,8 @@ class StructuredExplorer:
                         bug.reproduction_steps = self._format_reproduction_steps()
                 self.bugs.extend(screenshot_bugs)
                 if screenshot_bugs:
-                    print(f"      🔍 Found {len(screenshot_bugs)} visual issues at scroll position {scroll_position}px")
+                    if self.verbose:
+                        print(f"      🔍 Found {len(screenshot_bugs)} visual issues at scroll position {scroll_position}px")
         
         # Test forms and interactive elements visible at this scroll position
         await self._test_forms_with_edge_cases(page, page_url, viewport_name, viewport_key, evidence_collector)
@@ -230,9 +227,11 @@ class StructuredExplorer:
     async def _explore_scrollable_page(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector, scroll_manager: ScrollManager):
         """Explore a scrollable page by iterating through scroll positions"""
         
-        print(f"  📜 Starting scroll-based exploration of {viewport_name}")
+        if self.verbose:
+            print(f"  Starting scroll-based exploration of {viewport_name}")
         scroll_info = scroll_manager.get_scroll_info()
-        print(f"      📐 Scroll settings: {scroll_info['scroll_amount']}px steps, {scroll_info['overlap_percentage']}% overlap, max {scroll_info['max_iterations']} iterations")
+        if self.verbose:
+            print(f"      Scroll settings: {scroll_info['scroll_amount']}px steps, {scroll_info['overlap_percentage']}% overlap, max {scroll_info['max_iterations']} iterations")
         
         # Start at top position (scroll position 0)
         await scroll_manager.reset_to_top()
@@ -246,9 +245,7 @@ class StructuredExplorer:
         
         # Continue scrolling and exploring until we reach bottom or max iterations
         scroll_iteration = 1
-        while True:
-            print(f"  📜 Scroll iteration {scroll_iteration}")
-            
+        while True:            
             # Try to scroll to next position
             can_continue = await scroll_manager.scroll_to_next_position()
             if not can_continue:
@@ -271,13 +268,15 @@ class StructuredExplorer:
             self.action_recorder.record_scroll(scroll_manager.current_position, 0, "Reset to top after exploration")
         
         final_info = scroll_manager.get_scroll_info()
-        print(f"  ✅ Scroll exploration complete: {final_info['iterations']} positions explored")
+        if self.verbose:
+            print(f"  ✅ Scroll exploration complete: {final_info['iterations']} positions explored")
     
     
     async def _test_forms_with_edge_cases(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
         """Find forms and test them with edge case data that might break layouts"""
         
-        print(f"  📝 Testing forms in {viewport_name}")
+        if self.verbose:
+            print(f"  📝 Testing forms in {viewport_name}")
         
         try:
             # Find all visible forms AND standalone inputs
@@ -403,7 +402,6 @@ class StructuredExplorer:
             visible_forms = [f for f in forms_and_inputs_data if f['visible'] and f['inputs']]
             forms_count = len([f for f in visible_forms if f['type'] == 'form'])
             inputs_count = len([f for f in visible_forms if f['type'] == 'standalone_input'])
-            print(f"    📝 Found {forms_count} forms and {inputs_count} standalone inputs")
             
             if not visible_forms:
                 return
@@ -422,13 +420,13 @@ class StructuredExplorer:
                     untested_forms.append(form)
             
             if not untested_forms:
-                print(f"    📝 All viewport-visible forms already tested in {viewport_name}")
                 return
             
             # Test each untested form/input with edge case data
             for form_index, form in enumerate(untested_forms):
                 form_type = "form" if form['type'] == 'form' else "input field"
-                print(f"    📝 Testing {form_type} {form_index + 1} with edge case data")
+                if self.verbose:
+                    print(f"    📝 Testing {form_type} {form_index + 1} with edge case data")
                 
                 # Fill form with edge case data that might break layout
                 for input_data in form['inputs']:
@@ -446,19 +444,19 @@ class StructuredExplorer:
                 screenshot_id = f"form_{form_index}_filled_{viewport_key}"
                 screenshot_path = await evidence_collector.capture_bug_screenshot(screenshot_id, viewport_key)
                 
-                if screenshot_path:
-                    print(f"      📸 Form edge case screenshot: {screenshot_path}")
-                    
+                if screenshot_path:                    
                     # Analyze form filled with edge case data
                     form_bugs, error = await analyze_screenshot(
                         screenshot_path, 
                         f"form filled with edge case data",
                         viewport_key, 
-                        page_url,
-                        self.model
+                        page_url, 
+                        self.model,
+                        self.verbose
                     )
                     if error:
-                        print(f"      ⚠️  {self.model.title()} analysis error: {error}")
+                        if self.verbose:
+                            print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
                         # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in form_bugs:
@@ -468,13 +466,15 @@ class StructuredExplorer:
                                 bug.reproduction_steps = self._format_reproduction_steps()
                         self.bugs.extend(form_bugs)
                         if form_bugs:
-                            print(f"      🔍 Found {len(form_bugs)} visual issues in form {form_index + 1}")
+                            if self.verbose:
+                                print(f"      🔍 Found {len(form_bugs)} visual issues in form {form_index + 1}")
                 
                 # Clear form for next test
                 await self._clear_form_inputs(page, form)
                 
         except Exception as e:
-            print(f"    ❌ Form testing error: {str(e)}")
+            if self.verbose:
+                print(f"    ❌ Form testing error: {str(e)}")
     
     async def _fill_input_with_edge_case_data(self, page: Page, input_data: Dict[str, Any]):
         """Fill a single input with edge case data designed to test layout breaks"""
@@ -488,10 +488,12 @@ class StructuredExplorer:
             # Check how many elements match the selector
             count = await locator.count()
             if count == 0:
-                print(f"      ⚠️  No elements found for selector: {selector}")
+                if self.verbose:
+                    print(f"      ⚠️  No elements found for selector: {selector}")
                 return
             elif count > 1:
-                print(f"      ⚠️  Multiple elements ({count}) found for selector: {selector}, using first visible one")
+                if self.verbose:
+                    print(f"      ⚠️  Multiple elements ({count}) found for selector: {selector}, using first visible one")
                 # Use the first visible element
                 locator = locator.first
             
@@ -499,7 +501,8 @@ class StructuredExplorer:
             try:
                 await locator.wait_for(state="visible", timeout=5000)
             except Exception as e:
-                print(f"      ⚠️  Element not visible within 5s for {selector}: {str(e)}")
+                if self.verbose:
+                    print(f"      ⚠️  Element not visible within 5s for {selector}: {str(e)}")
                 return
             
             # Edge case data designed to test layout limits
@@ -528,7 +531,8 @@ class StructuredExplorer:
             
         except Exception as e:
             field_identifier = input_data.get('name') or input_data.get('placeholder') or input_data.get('id') or 'unknown'
-            print(f"      ⚠️  Could not fill input '{field_identifier}': {str(e)}")
+            if self.verbose:
+                print(f"      ⚠️  Could not fill input '{field_identifier}': {str(e)}")
     
     async def _clear_form_inputs(self, page: Page, form: Dict[str, Any]):
         """Clear all inputs in a form"""
@@ -551,10 +555,7 @@ class StructuredExplorer:
                 continue  # Ignore individual clear failures
     
     async def _test_interactive_elements(self, page: Page, page_url: str, viewport_name: str, viewport_key: str, evidence_collector: EvidenceCollector):
-        """Find and test interactive elements like dropdowns, modals, accordions"""
-        
-        print(f"  🎮 Testing interactive elements in {viewport_name}")
-        
+        """Find and test interactive elements like dropdowns, modals, accordions"""        
         try:
             # Test dropdowns
             await self._test_dropdowns(page, page_url, viewport_name, viewport_key, evidence_collector)
@@ -566,7 +567,8 @@ class StructuredExplorer:
             await self._test_accordions(page, page_url, viewport_name, viewport_key, evidence_collector)
             
         except Exception as e:
-            print(f"    ❌ Interactive testing error: {str(e)}")
+            if self.verbose:
+                print(f"    ❌ Interactive testing error: {str(e)}")
     
     async def _find_viewport_visible_elements(self, page: Page, selectors: List[str]) -> List[Dict[str, Any]]:
         """
@@ -705,7 +707,6 @@ class StructuredExplorer:
         untested_dropdowns = self.interaction_tracker.filter_untested_elements(dropdown_elements, "dropdown")
         
         if not untested_dropdowns:
-            print(f"    📋 All viewport-visible dropdowns already tested in {viewport_name}")
             return
         
         dropdown_count = 0
@@ -748,20 +749,20 @@ class StructuredExplorer:
                 screenshot_id = f"dropdown_{dropdown_count}_open_{viewport_key}"
                 screenshot_path = await evidence_collector.capture_bug_screenshot(screenshot_id, viewport_key)
                 
-                if screenshot_path:
-                    print(f"      📸 Dropdown open screenshot: {screenshot_path}")
-                    
+                if screenshot_path:                    
                     # Analyze dropdown open state
                     element_text = element_text or "unknown"
                     dropdown_bugs, error = await analyze_screenshot(
                         screenshot_path, 
                         f"dropdown opened for {element_text}",
                         viewport_key, 
-                        page_url,
-                        self.model
+                        page_url, 
+                        self.model,
+                        self.verbose
                     )
                     if error:
-                        print(f"      ⚠️  {self.model.title()} analysis error: {error}")
+                        if self.verbose:
+                            print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
                         # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in dropdown_bugs:
@@ -893,7 +894,6 @@ class StructuredExplorer:
         untested_modals = self.interaction_tracker.filter_untested_elements(modal_elements, "modal")
         
         if not untested_modals:
-            print(f"    🔲 All viewport-visible modals already tested in {viewport_name}")
             return
         
         modal_count = 0
@@ -925,19 +925,19 @@ class StructuredExplorer:
                 screenshot_id = f"modal_{modal_count}_open_{viewport_key}"
                 screenshot_path = await evidence_collector.capture_bug_screenshot(screenshot_id, viewport_key)
                 
-                if screenshot_path:
-                    print(f"      📸 Modal open screenshot: {screenshot_path}")
-                    
+                if screenshot_path:                    
                     # Analyze modal open state
                     modal_bugs, error = await analyze_screenshot(
                         screenshot_path, 
                         f"modal opened",
                         viewport_key, 
-                        page_url,
-                        self.model
+                        page_url, 
+                        self.model,
+                        self.verbose
                     )
                     if error:
-                        print(f"      ⚠️  {self.model.title()} analysis error: {error}")
+                        if self.verbose:
+                            print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
                         # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in modal_bugs:
@@ -987,7 +987,6 @@ class StructuredExplorer:
         untested_accordions = self.interaction_tracker.filter_untested_elements(accordion_elements, "accordion")
         
         if not untested_accordions:
-            print(f"    📁 All viewport-visible accordions already tested in {viewport_name}")
             return
         
         accordion_count = 0
@@ -997,7 +996,6 @@ class StructuredExplorer:
                 element_locator = page.locator(selector).first
                 
                 accordion_count += 1
-                print(f"    📁 Testing viewport-visible accordion {accordion_count}: '{element_info['text'][:30] if element_info['text'] else 'unknown'}'")
                 
                 # Open accordion
                 click_success = await self._safe_click_element(page, element_locator, selector)
@@ -1019,19 +1017,19 @@ class StructuredExplorer:
                 screenshot_id = f"accordion_{accordion_count}_expanded_{viewport_key}"
                 screenshot_path = await evidence_collector.capture_bug_screenshot(screenshot_id, viewport_key)
                 
-                if screenshot_path:
-                    print(f"      📸 Accordion expanded screenshot: {screenshot_path}")
-                    
+                if screenshot_path:                    
                     # Analyze accordion expanded state
                     accordion_bugs, error = await analyze_screenshot(
                         screenshot_path, 
                         f"accordion expanded",
                         viewport_key, 
-                        page_url,
-                        self.model
+                        page_url, 
+                        self.model,
+                        self.verbose
                     )
                     if error:
-                        print(f"      ⚠️  {self.model.title()} analysis error: {error}")
+                        if self.verbose:
+                            print(f"      ⚠️  {self.model.title()} analysis error: {error}")
                     else:
                         # Update screenshot paths in the bug evidence and populate reproduction steps
                         for bug in accordion_bugs:

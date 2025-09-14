@@ -92,7 +92,7 @@ class PerformanceTracker:
             return timing_data
             
         except Exception as e:
-            print(f"Failed to collect timing data: {str(e)}")
+            # Silently fail - performance data is optional
             return {}
     
     async def _get_resource_summary(self, page: Page) -> Dict[str, float]:
@@ -168,7 +168,7 @@ class PerformanceTracker:
             """)
             
         except Exception as e:
-            print(f"Failed to get resource summary: {str(e)}")
+            # Silently fail - performance data is optional
             return {}
     
     async def get_core_web_vitals(self, page: Page) -> Dict[str, float]:
@@ -214,7 +214,7 @@ class PerformanceTracker:
             """)
             
         except Exception as e:
-            print(f"Failed to get Core Web Vitals: {str(e)}")
+            # Silently fail - performance data is optional
             return {}
     
     async def measure_interaction_timing(self, page: Page, action_func) -> float:
@@ -248,5 +248,5 @@ class PerformanceTracker:
             return duration
             
         except Exception as e:
-            print(f"Failed to measure interaction timing: {str(e)}")
+            # Silently fail - performance data is optional
             return 0.0

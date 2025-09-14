@@ -2,10 +2,7 @@ import time
 from typing import List, Optional
 from playwright.async_api import Page
 
-try:
-    from ...core.types import ReproStep
-except ImportError:
-    from core.types import ReproStep
+from core.types import ReproStep
 
 
 class ActionRecorder:

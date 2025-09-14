@@ -15,7 +15,14 @@
 
 ## Installation
 
-### From GitHub (Recommended)
+### From PyPI (Recommended)
+
+```bash
+pip install mantis-web-crawler
+playwright install
+```
+
+### From Source (Development)
 
 ```bash
 # Clone the repository
@@ -29,14 +36,23 @@ pip install -e .
 playwright install
 ```
 
-### From PyPI (when published)
+## Quick Start
+
+### Setting up API Keys
+To use AI-powered visual analysis, set your API keys as environment variables:
 
 ```bash
-pip install mantis-web-crawler
-playwright install
+# Add to your shell profile (.bashrc, .zshrc, etc.) or set before running
+export COHERE_API_KEY="your-cohere-api-key-here"
+export GEMINI_API_KEY="your-gemini-api-key-here"  # Optional, alternative to Cohere
 ```
 
-## Quick Start
+Or set them temporarily for a single session:
+```bash
+# Set for current session only
+export COHERE_API_KEY="your-api-key"
+mantis run https://example.com
+```
 
 After installation, you can run Mantis directly from anywhere:
 
@@ -80,6 +96,7 @@ mantis run https://example.com --dashboard
 - `--output`: Output file for JSON report (optional)
 - `--verbose`: Enable verbose logging
 - `--dashboard`: Launch real-time monitoring dashboard
+- `--scan-type`: One of 'all', 'ui', 'accessibility' or 'performance'. Defaults to 'all'.
 
 ## Requirements
 

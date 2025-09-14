@@ -20,8 +20,9 @@ class InteractionTracker:
     - Reset capability for new viewports
     """
     
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         """Initialize the interaction tracker."""
+        self.verbose = verbose
         # viewport_key -> set of element signatures that have been tested
         self.tested_elements: Dict[str, Set[str]] = {}
         
@@ -91,7 +92,8 @@ class InteractionTracker:
                 self.skipped_counts[self.current_viewport][element_type] = 0
             self.skipped_counts[self.current_viewport][element_type] += skipped_count
             
-            print(f"      🔄 Skipped {skipped_count} already-tested {element_type}(s) in {self.current_viewport}")
+            if self.verbose:
+                print(f"      🔄 Skipped {skipped_count} already-tested {element_type}(s) in {self.current_viewport}")
         
         return untested_elements
     
@@ -203,7 +205,8 @@ class InteractionTracker:
     
     def log_final_summary(self):
         """Log a final summary of all testing activity across viewports."""
-        print(f"\n📊 InteractionTracker Final Summary:")
+        if self.verbose:
+            print(f"\n📊 InteractionTracker Final Summary:")
         
         total_tested = 0
         total_skipped = 0
@@ -215,14 +218,14 @@ class InteractionTracker:
             
             total_tested += tested
             total_skipped += skipped
-            
-            print(f"  📱 {viewport_key}: {tested} tested, {skipped} skipped")
-            
+                        
             # Show breakdown by element type if there's activity
             if tested > 0 or skipped > 0:
                 for element_type, count in summary['tested_by_type'].items():
                     skipped_count = summary['skipped_by_type'].get(element_type, 0)
-                    print(f"    • {element_type}: {count} tested, {skipped_count} skipped")
+                    if self.verbose:
+                        print(f"    • {element_type}: {count} tested, {skipped_count} skipped")
         
         efficiency_saved = total_skipped / (total_tested + total_skipped) * 100 if (total_tested + total_skipped) > 0 else 0
-        print(f"  🎯 Overall: {total_tested} interactions, {total_skipped} duplicates prevented ({efficiency_saved:.1f}% efficiency gain)")
+        if self.verbose:
+            print(f"  🎯 Overall: {total_tested} interactions, {total_skipped} duplicates prevented ({efficiency_saved:.1f}% efficiency gain)")

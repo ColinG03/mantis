@@ -5,21 +5,14 @@ import asyncio
 from typing import List, Tuple, Optional, Dict, Any
 import json
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()  # Load environment variables from .env file
-except ImportError:
-    pass  # dotenv is optional, fallback to system env vars
+# Environment variables are loaded at CLI entry point
 
 try:
     import google.generativeai as genai
 except ImportError:
     genai = None
 
-try:
-    from ...core.types import Bug, Evidence
-except ImportError:
-    from core.types import Bug, Evidence
+from core.types import Bug, Evidence
 
 
 class GeminiAnalyzer:
@@ -27,7 +20,7 @@ class GeminiAnalyzer:
     Analyzes screenshots using Gemini 2.5 Flash to detect visual layout issues and severe UX problems.
     """
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, verbose: bool = False):
         """
         Initialize Gemini analyzer.
         
@@ -44,6 +37,7 @@ class GeminiAnalyzer:
         # Configure Gemini
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.verbose = verbose
         
         # Generation config for consistent responses
         self.generation_config = {
@@ -158,7 +152,8 @@ EXAMPLE OUTPUT (when issues exist):
             bug_data_list = json.loads(clean_text)
             
             if not isinstance(bug_data_list, list):
-                print(f"Warning: Gemini returned non-list response: {type(bug_data_list)}")
+                if self.verbose:
+                    print(f"Warning: Gemini returned non-list response: {type(bug_data_list)}")
                 return []
             
             bugs = []
@@ -192,11 +187,13 @@ EXAMPLE OUTPUT (when issues exist):
             return bugs
             
         except json.JSONDecodeError as e:
-            print(f"Warning: Failed to parse Gemini JSON response: {str(e)}")
-            print(f"Response was: {response_text[:200]}...")
+            if self.verbose:
+                print(f"Warning: Failed to parse Gemini JSON response: {str(e)}")
+                print(f"Response was: {response_text[:200]}...")
             return []
         except Exception as e:
-            print(f"Warning: Error parsing Gemini response: {str(e)}")
+            if self.verbose:
+                print(f"Warning: Error parsing Gemini response: {str(e)}")
             return []
     
     async def analyze_screenshot(self, screenshot_path: str, context: str, viewport: str, page_url: str) -> Tuple[List[Bug], Optional[str]]:
@@ -262,7 +259,7 @@ EXAMPLE OUTPUT (when issues exist):
 
 
 # Convenience function for easy integration
-async def analyze_screenshot(screenshot_path: str, context: str, viewport: str, page_url: str) -> Tuple[List[Bug], Optional[str]]:
+async def analyze_screenshot(screenshot_path: str, context: str, viewport: str, page_url: str, verbose: bool = False) -> Tuple[List[Bug], Optional[str]]:
     """
     Convenience function to analyze a screenshot without managing GeminiAnalyzer instance.
     
@@ -276,7 +273,7 @@ async def analyze_screenshot(screenshot_path: str, context: str, viewport: str, 
         Tuple of (bugs_found, error_message)
     """
     try:
-        analyzer = GeminiAnalyzer()
+        analyzer = GeminiAnalyzer(verbose=verbose)
         return await analyzer.analyze_screenshot(screenshot_path, context, viewport, page_url)
     except Exception as e:
         return [], f"Failed to initialize Gemini analyzer: {str(e)}"

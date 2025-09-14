@@ -12,14 +12,9 @@ except ImportError:
     print("Warning: axe-playwright-python not installed. Run: pip install axe-playwright-python")
     Axe = None
 
-try:
-    from .base_scanner import BaseScanner, BaseScanResult
-    from ...core.types import Bug, Evidence
-    from ..utils.evidence import EvidenceCollector
-except ImportError:
-    from inspector.checks.base_scanner import BaseScanner, BaseScanResult
-    from core.types import Bug, Evidence
-    from inspector.utils.evidence import EvidenceCollector
+from inspector.checks.base_scanner import BaseScanner, BaseScanResult
+from core.types import Bug, Evidence
+from inspector.utils.evidence import EvidenceCollector
 
 
 class AccessibilityScanResult(BaseScanResult):
@@ -101,9 +96,7 @@ class AccessibilityScanner(BaseScanner):
             )
             result.add_finding(bug)
             return result
-        
-        print(f"  ♿ Running accessibility scan (WCAG {self.wcag_level})")
-        
+                
         try:
             # Set up evidence collection
             evidence_collector = EvidenceCollector(page, self.output_dir)
@@ -136,10 +129,12 @@ class AccessibilityScanner(BaseScanner):
             if result.total_checks > 0:
                 result.pass_rate = result.passes_count / result.total_checks
             
-            print(f"    ✅ Accessibility scan complete: {result.violations_count} violations, {result.passes_count} passes")
+            if self.verbose:
+                print(f"    ✅ Accessibility scan complete: {result.violations_count} violations, {result.passes_count} passes")
             
         except Exception as e:
-            print(f"    ❌ Accessibility scan error: {str(e)}")
+            if self.verbose:
+                print(f"    ❌ Accessibility scan error: {str(e)}")
             
             # Create error bug
             bug = Bug(
@@ -392,13 +387,13 @@ class AccessibilityScanner(BaseScanner):
             ]
         
         combined_result = AccessibilityScanResult()
-        print(f"  ♿ Running accessibility scan across {len(viewports)} viewports")
         
         for viewport in viewports:
             viewport_key = f"{viewport['width']}x{viewport['height']}"
             viewport_name = viewport.get('name', viewport_key)
             
-            print(f"    📱 Testing accessibility in {viewport_name} ({viewport_key})")
+            if self.verbose:
+                print(f"    Testing accessibility in {viewport_name} ({viewport_key})")
             
             # Set viewport
             await page.set_viewport_size({"width": viewport['width'], "height": viewport['height']})
@@ -433,5 +428,6 @@ class AccessibilityScanner(BaseScanner):
         if combined_result.total_checks > 0:
             combined_result.pass_rate = combined_result.passes_count / combined_result.total_checks
         
-        print(f"    ✅ Multi-viewport accessibility scan complete: {combined_result.violations_count} total violations")
+        if self.verbose:
+            print(f"    ✅ Multi-viewport accessibility scan complete: {combined_result.violations_count} total violations")
         return combined_result

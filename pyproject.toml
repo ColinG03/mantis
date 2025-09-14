@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mantis-web-crawler"
-version = "1.0.0"
+version = "1.4.1"
 description = "Web accessibility and UI bug detection tool"
 readme = "README.md"
 authors = [
@@ -39,6 +39,8 @@ dependencies = [
     "lxml>=4.6.0",
     "python-socketio[client]>=5.0.0",
     "cohere>=5.11.0",
+    "python-dotenv>=1.0.0",
+    "axe-playwright-python>=0.1.0",
 ]
 
 [project.optional-dependencies]

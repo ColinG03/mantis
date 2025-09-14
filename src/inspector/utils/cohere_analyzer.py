@@ -5,21 +5,15 @@ import asyncio
 from typing import List, Tuple, Optional, Dict, Any
 import json
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()  # Load environment variables from .env file
-except ImportError:
-    pass  # dotenv is optional, fallback to system env vars
+# Environment variables are loaded at CLI entry point
+# Users should set COHERE_API_KEY in their shell environment or .env file
 
 try:
     import cohere
 except ImportError:
     cohere = None
 
-try:
-    from ...core.types import Bug, Evidence
-except ImportError:
-    from core.types import Bug, Evidence
+from core.types import Bug, Evidence
 
 
 class CohereAnalyzer:
@@ -27,7 +21,7 @@ class CohereAnalyzer:
     Analyzes screenshots using Cohere's Command-A-Vision (command-a-vision-07-2025) model to detect visual layout issues and severe UX problems.
     """
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, verbose: bool = False):
         """
         Initialize Cohere analyzer.
         
@@ -44,6 +38,7 @@ class CohereAnalyzer:
         # Initialize Cohere client
         self.client = cohere.ClientV2(api_key=self.api_key)
         self.model = 'command-a-vision-07-2025'  # Using the latest Command-A-Vision multimodal model
+        self.verbose = verbose
         
         # Generation config for consistent responses
         self.generation_config = {
@@ -225,10 +220,12 @@ EXAMPLE OUTPUT (when issues exist):
             
             # Handle case where response is not a list
             if not isinstance(bug_data, list):
-                print(f"Warning: Expected list, got {type(bug_data)}. Response: {clean_response[:200]}...")
+                if self.verbose:
+                    print(f"Warning: Expected list, got {type(bug_data)}. Response: {clean_response[:200]}...")
                 # If it's a single object, wrap it in a list
                 if isinstance(bug_data, dict):
-                    print("Converting single object to list")
+                    if self.verbose:
+                        print("Converting single object to list")
                     bug_data = [bug_data]
                 else:
                     return []
@@ -273,16 +270,18 @@ EXAMPLE OUTPUT (when issues exist):
             return bugs
             
         except json.JSONDecodeError as e:
-            print(f"Failed to parse JSON response: {e}")
-            print(f"Response was: {response_text[:500]}...")
+            if self.verbose:
+                print(f"Failed to parse JSON response: {e}")
+                print(f"Response was: {response_text[:500]}...")
             return []
         except Exception as e:
-            print(f"Error parsing Cohere response: {e}")
+            if self.verbose:
+                print(f"Error parsing Cohere response: {e}")
             return []
 
 
 # Convenience function for backward compatibility
-async def analyze_screenshot(image_path_or_data: str, viewport: str, page_url: str, api_key: Optional[str] = None) -> Tuple[List[Bug], str]:
+async def analyze_screenshot(image_path_or_data: str, viewport: str, page_url: str, api_key: Optional[str] = None, verbose: bool = False) -> Tuple[List[Bug], str]:
     """
     Analyze a screenshot using Cohere vision model.
     
@@ -295,7 +294,7 @@ async def analyze_screenshot(image_path_or_data: str, viewport: str, page_url: s
     Returns:
         Tuple of (List of Bug objects, error message if any)
     """
-    analyzer = CohereAnalyzer(api_key=api_key)
+    analyzer = CohereAnalyzer(api_key=api_key, verbose=verbose)
     
     # Check if input is a file path or base64 data
     if os.path.exists(image_path_or_data):

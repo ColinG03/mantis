@@ -5,10 +5,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from playwright.async_api import Page
 
-try:
-    from ...core.types import Bug, PageResult
-except ImportError:
-    from core.types import Bug, PageResult
+from core.types import Bug, PageResult
 
 
 class BaseScanResult:
@@ -31,8 +28,9 @@ class BaseScanResult:
 class BaseScanner(ABC):
     """Abstract base class for all scanners"""
     
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, verbose: bool = False):
         self.output_dir = output_dir
+        self.verbose = verbose
         self.name = self.__class__.__name__
     
     @abstractmethod

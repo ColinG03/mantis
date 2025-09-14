@@ -6,10 +6,7 @@ import base64
 import os
 from typing import List, Tuple, Optional
 
-try:
-    from ...core.types import Bug
-except ImportError:
-    from core.types import Bug
+from core.types import Bug
 
 
 async def analyze_screenshot(
@@ -17,7 +14,8 @@ async def analyze_screenshot(
     context: str, 
     viewport: str, 
     page_url: str, 
-    model: str = 'cohere'
+    model: str = 'cohere',
+    verbose: bool = False
 ) -> Tuple[List[Bug], Optional[str]]:
     """
     Analyze a screenshot using the specified model.
@@ -35,16 +33,17 @@ async def analyze_screenshot(
         - error_message: None if successful, error string if API failed
     """
     if model.lower() == 'gemini':
-        return await _analyze_with_gemini(screenshot_path, context, viewport, page_url)
+        return await _analyze_with_gemini(screenshot_path, context, viewport, page_url, verbose)
     else:  # Default to cohere
-        return await _analyze_with_cohere(screenshot_path, context, viewport, page_url)
+        return await _analyze_with_cohere(screenshot_path, context, viewport, page_url, verbose)
 
 
 async def _analyze_with_gemini(
     screenshot_path: str, 
     context: str, 
     viewport: str, 
-    page_url: str
+    page_url: str,
+    verbose: bool = False
 ) -> Tuple[List[Bug], Optional[str]]:
     """Analyze screenshot using Gemini model"""
     try:
@@ -60,7 +59,8 @@ async def _analyze_with_cohere(
     screenshot_path: str, 
     context: str, 
     viewport: str, 
-    page_url: str
+    page_url: str,
+    verbose: bool = False
 ) -> Tuple[List[Bug], Optional[str]]:
     """Analyze screenshot using Cohere model"""
     try:
