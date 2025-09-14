@@ -20,14 +20,15 @@ class BugDeduplicator:
     Uses the same AI model that was used for the original bug detection.
     """
     
-    def __init__(self, model: str = 'cohere'):
+    def __init__(self, model: str = 'cohere', verbose: bool = False):
         """
         Initialize bug deduplicator.
         
         Args:
             model: Which model to use ('cohere' or 'gemini') - should match the original scan
         """
-        self.model = model.lower()
+        self.model = model
+        self.verbose = verbose
     
     async def deduplicate_bugs(self, bugs: List[Bug]) -> List[Bug]:
         """
@@ -42,7 +43,8 @@ class BugDeduplicator:
         if len(bugs) <= 1:
             return bugs
         
-        print(f"🔍 Deduplicating {len(bugs)} bugs using {self.model} model...")
+        if self.verbose:
+            print(f"🔍 Deduplicating {len(bugs)} bugs using {self.model} model...")
         
         # Convert bugs to a format suitable for AI analysis
         bugs_data = self._prepare_bugs_for_analysis(bugs)
@@ -51,13 +53,15 @@ class BugDeduplicator:
         dedup_result = await self._analyze_duplicates(bugs_data)
         
         if dedup_result is None:
-            print("⚠️ Deduplication failed, returning original bugs")
+            if self.verbose:
+                print("⚠️ Deduplication failed, returning original bugs")
             return bugs
         
         # Process the deduplication result
         deduplicated_bugs = self._process_deduplication_result(bugs, dedup_result)
         
-        print(f"✅ Deduplication complete: {len(bugs)} → {len(deduplicated_bugs)} bugs")
+        if self.verbose:
+            print(f"✅ Deduplication complete: {len(bugs)} → {len(deduplicated_bugs)} bugs")
         return deduplicated_bugs
     
     def _prepare_bugs_for_analysis(self, bugs: List[Bug]) -> str:
@@ -144,7 +148,8 @@ class BugDeduplicator:
             return self._parse_deduplication_response(response_text)
             
         except Exception as e:
-            print(f"❌ Cohere deduplication analysis failed: {str(e)}")
+            if self.verbose:
+                print(f"❌ Cohere deduplication analysis failed: {str(e)}")
             return None
     
     async def _analyze_with_gemini(self, bugs_data: str) -> Optional[Dict[str, Any]]:
@@ -168,7 +173,8 @@ class BugDeduplicator:
             return self._parse_deduplication_response(response.text)
             
         except Exception as e:
-            print(f"❌ Gemini deduplication analysis failed: {str(e)}")
+            if self.verbose:
+                print(f"❌ Gemini deduplication analysis failed: {str(e)}")
             return None
     
     def _create_deduplication_prompt(self, bugs_data: str) -> str:
@@ -237,7 +243,8 @@ Be conservative - only group bugs that are clearly the same issue. When in doubt
             end_idx = response_text.rfind('}') + 1
             
             if start_idx == -1 or end_idx == 0:
-                print("❌ No JSON found in deduplication response")
+                if self.verbose:
+                    print("❌ No JSON found in deduplication response")
                 return None
             
             json_str = response_text[start_idx:end_idx]
@@ -245,16 +252,19 @@ Be conservative - only group bugs that are clearly the same issue. When in doubt
             
             # Validate the structure
             if not isinstance(result.get('duplicate_groups'), list):
-                print("❌ Invalid deduplication response structure")
+                if self.verbose:
+                    print("❌ Invalid deduplication response structure")
                 return None
             
             return result
             
         except json.JSONDecodeError as e:
-            print(f"❌ Failed to parse deduplication response as JSON: {str(e)}")
+            if self.verbose:
+                print(f"❌ Failed to parse deduplication response as JSON: {str(e)}")
             return None
         except Exception as e:
-            print(f"❌ Error parsing deduplication response: {str(e)}")
+            if self.verbose:
+                print(f"❌ Error parsing deduplication response: {str(e)}")
             return None
     
     def _process_deduplication_result(self, original_bugs: List[Bug], dedup_result: Dict[str, Any]) -> List[Bug]:
@@ -284,7 +294,8 @@ Be conservative - only group bugs that are clearly the same issue. When in doubt
                 # Validate indices
                 all_indices = [primary_index] + duplicate_indices
                 if any(idx < 0 or idx >= len(original_bugs) for idx in all_indices):
-                    print(f"⚠️ Invalid bug indices in group: {all_indices}")
+                    if self.verbose:
+                        print(f"⚠️ Invalid bug indices in group: {all_indices}")
                     continue
                 
                 # Get the primary bug and duplicates
@@ -298,7 +309,8 @@ Be conservative - only group bugs that are clearly the same issue. When in doubt
                 # Mark all indices as processed
                 processed_indices.update(all_indices)
                 
-                print(f"🔗 Merged {len(duplicate_indices)} duplicates into bug: {merged_bug.summary[:60]}...")
+                if self.verbose:
+                    print(f"🔗 Merged {len(duplicate_indices)} duplicates into bug: {merged_bug.summary[:60]}...")
             
             # Add unique bugs (those not in any duplicate group)
             unique_indices = dedup_result.get('unique_bugs', [])
@@ -311,12 +323,14 @@ Be conservative - only group bugs that are clearly the same issue. When in doubt
             for idx, bug in enumerate(original_bugs):
                 if idx not in processed_indices:
                     deduplicated_bugs.append(bug)
-                    print(f"⚠️ Bug {idx} not mentioned in deduplication result, keeping as unique")
+                    if self.verbose:
+                        print(f"⚠️ Bug {idx} not mentioned in deduplication result, keeping as unique")
             
             return deduplicated_bugs
             
         except Exception as e:
-            print(f"❌ Error processing deduplication result: {str(e)}")
+            if self.verbose:
+                print(f"❌ Error processing deduplication result: {str(e)}")
             return original_bugs
     
     def _merge_bugs(self, primary_bug: Bug, duplicate_bugs: List[Bug], reason: str) -> Bug:

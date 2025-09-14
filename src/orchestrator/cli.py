@@ -123,21 +123,22 @@ Examples:
     
     async def run_crawl(self, args: argparse.Namespace):
         """Execute the crawl with given arguments."""
-        print(f"🔍 Starting crawl of {args.url}")
-        print(f"📊 Configuration: max_depth={args.max_depth}, max_pages={args.max_pages}")
-        print(f"🔬 Scan type: {args.scan_type}")
-        print(f"🤖 AI Model: {args.model}")
+        print(f"Starting crawl of {args.url}")
+        print(f"Configuration: max_depth={args.max_depth}, max_pages={args.max_pages}")
+        print(f"Scan type: {args.scan_type}")
+        print(f"AI Model: {args.model}")
         
         # Create scan configuration based on CLI argument
         scan_config = self._create_scan_config(args.scan_type, args.model)
         
         # Get inspector instance with scan configuration
-        inspector = await get_inspector(scan_config=scan_config)
+        inspector = await get_inspector(scan_config=scan_config, verbose=args.verbose)
         
         # Create crawler
         crawler = Crawler(
             max_depth=args.max_depth,
-            max_pages=args.max_pages
+            max_pages=args.max_pages,
+            verbose=args.verbose
         )
         
         try:
@@ -158,12 +159,18 @@ Examples:
     
     def setup_logging(self, verbose: bool = False) -> None:
         """Setup logging configuration."""
-        level = logging.DEBUG if verbose else logging.INFO
+        level = logging.DEBUG if verbose else logging.ERROR
         logging.basicConfig(
             level=level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
+        
+        # Suppress noisy third-party library logs unless verbose
+        if not verbose:
+            logging.getLogger('httpx').setLevel(logging.WARNING)
+            logging.getLogger('cohere').setLevel(logging.WARNING)
+            logging.getLogger('google.generativeai').setLevel(logging.WARNING)
     
     def save_report(self, report: CrawlReport, output_path: str) -> None:
         """Save crawl report to JSON file."""
@@ -217,17 +224,17 @@ Examples:
     def print_summary(self, report: CrawlReport) -> None:
         """Print crawl summary to console."""
         print(f"\n{'='*60}")
-        print(f"🎯 CRAWL SUMMARY")
+        print(f"CRAWL SUMMARY")
         print(f"{'='*60}")
-        print(f"🌐 Seed URL: {report.seed_url}")
-        print(f"📄 Pages crawled: {report.pages_total}")
-        print(f"🐛 Total bugs found: {report.bugs_total}")
-        print(f"📅 Scanned at: {report.scanned_at}")
+        print(f"Seed URL: {report.seed_url}")
+        print(f"Pages crawled: {report.pages_total}")
+        print(f"Total bugs found: {report.bugs_total}")
+        print(f"Scanned at: {report.scanned_at}")
         
         if report.bugs_total == 0:
-            print(f"✅ No bugs found! Your site looks good.")
+            print(f"No bugs found! Your site looks good.")
         else:
-            print(f"\n🔍 Bug Breakdown:")
+            print(f"\nBug Breakdown:")
             
             # Group bugs by severity
             severity_counts = {}
@@ -256,7 +263,7 @@ Examples:
             if len(report.findings) > 5:
                 print(f"  ... and {len(report.findings) - 5} more issues")
         
-        print(f"\n📊 Page Status:")
+        print(f"\nPage Status:")
         print(f"Report statuses: {[page.get('status') for page in report.pages]}")
         success_count = sum(1 for page in report.pages if page.get('status') and isinstance(page['status'], int) and page['status'] < 400)
         failed_count = len(report.pages) - success_count
@@ -352,7 +359,7 @@ async def main():
                     sys.exit(1)
         
     except KeyboardInterrupt:
-        print(f"\n⚠️  Crawl interrupted by user")
+        print(f"\nCrawl interrupted by user")
         sys.exit(1)
     except Exception as e:
         print(f"❌ Error: {e}")

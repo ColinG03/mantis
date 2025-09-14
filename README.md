@@ -15,7 +15,14 @@
 
 ## Installation
 
-### From GitHub (Recommended)
+### From PyPI (Recommended)
+
+```bash
+pip install mantis-web-crawler
+playwright install
+```
+
+### From Source (Development)
 
 ```bash
 # Clone the repository
@@ -26,13 +33,6 @@ cd mantis
 pip install -e .
 
 # Install Playwright browsers (required)
-playwright install
-```
-
-### From PyPI (when published)
-
-```bash
-pip install mantis-web-crawler
 playwright install
 ```
 
@@ -80,6 +80,7 @@ mantis run https://example.com --dashboard
 - `--output`: Output file for JSON report (optional)
 - `--verbose`: Enable verbose logging
 - `--dashboard`: Launch real-time monitoring dashboard
+- `--scan-type`: One of 'all', 'ui', 'accessibility' or 'performance'. Defaults to 'all'.
 
 ## Requirements
 

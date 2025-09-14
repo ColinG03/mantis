@@ -14,9 +14,10 @@ class EvidenceCollector:
     that help developers understand and reproduce issues.
     """
     
-    def __init__(self, page: Page, output_dir: str):
+    def __init__(self, page: Page, output_dir: str, verbose: bool = False):
         self.page = page
         self.output_dir = output_dir
+        self.verbose = verbose
         self.screenshots_dir = os.path.join(output_dir, 'screenshots')
         self.logs_dir = os.path.join(output_dir, 'logs')
         
@@ -49,7 +50,8 @@ class EvidenceCollector:
             return filepath
             
         except Exception as e:
-            print(f"Failed to capture screenshot for bug {bug_id}: {str(e)}")
+            if self.verbose:
+                print(f"Failed to capture screenshot for bug {bug_id}: {str(e)}")
             return None
     
     async def capture_viewport_screenshot(self, viewport: str) -> Optional[str]:
@@ -76,7 +78,8 @@ class EvidenceCollector:
             return filepath
             
         except Exception as e:
-            print(f"Failed to capture viewport screenshot: {str(e)}")
+            if self.verbose:
+                print(f"Failed to capture viewport screenshot: {str(e)}")
             return None
     
     async def capture_scroll_screenshot(self, scroll_position: int, viewport: str) -> Optional[str]:
@@ -104,7 +107,8 @@ class EvidenceCollector:
             return filepath
             
         except Exception as e:
-            print(f"Failed to capture scroll screenshot at position {scroll_position}: {str(e)}")
+            if self.verbose:
+                print(f"Failed to capture scroll screenshot at position {scroll_position}: {str(e)}")
             return None
     
     async def capture_element_screenshot(self, selector: str, bug_id: str) -> Optional[str]:
@@ -132,7 +136,8 @@ class EvidenceCollector:
             return filepath
             
         except Exception as e:
-            print(f"Failed to capture element screenshot: {str(e)}")
+            if self.verbose:
+                print(f"Failed to capture element screenshot: {str(e)}")
             return None
     
     def format_console_logs(self, logs: list) -> Optional[str]:
@@ -173,7 +178,8 @@ class EvidenceCollector:
             return '\n'.join(formatted_lines)
             
         except Exception as e:
-            print(f"Failed to format console logs: {str(e)}")
+            if self.verbose:
+                print(f"Failed to format console logs: {str(e)}")
             return f"Error formatting logs: {str(e)}"
     
     async def save_dom_snapshot(self, bug_id: str, selector: Optional[str] = None) -> Optional[str]:
@@ -209,7 +215,8 @@ class EvidenceCollector:
             return filepath
             
         except Exception as e:
-            print(f"Failed to save DOM snapshot for bug {bug_id}: {str(e)}")
+            if self.verbose:
+                print(f"Failed to save DOM snapshot for bug {bug_id}: {str(e)}")
             return None
     
     async def collect_console_logs(self) -> list:
@@ -236,7 +243,8 @@ class EvidenceCollector:
             return logs if logs else []
             
         except Exception as e:
-            print(f"Failed to collect console logs: {str(e)}")
+            if self.verbose:
+                print(f"Failed to collect console logs: {str(e)}")
             return []
     
     async def collect_network_logs(self) -> list:
@@ -279,5 +287,6 @@ class EvidenceCollector:
             return metrics
             
         except Exception as e:
-            print(f"Failed to collect page metrics: {str(e)}")
+            if self.verbose:
+                print(f"Failed to collect page metrics: {str(e)}")
             return {}

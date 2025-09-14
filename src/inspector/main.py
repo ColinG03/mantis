@@ -37,19 +37,21 @@ class Inspector(InspectorInterface):
         "action_ms": 5000   # 5 seconds for interactions
     }
     
-    def __new__(cls, testing_mode: bool = False, scan_config: ScanConfig = None) -> 'Inspector':
+    def __new__(cls, testing_mode: bool = False, scan_config: ScanConfig = None, verbose: bool = False) -> 'Inspector':
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
             cls._instance._testing_mode = testing_mode
+            cls._instance._verbose = verbose
         return cls._instance
     
-    def __init__(self, testing_mode: bool = False, scan_config: ScanConfig = None):
+    def __init__(self, testing_mode: bool = False, scan_config: ScanConfig = None, verbose: bool = False):
         if self._initialized:
             return
             
         self.testing_mode = testing_mode
         self.scan_config = scan_config or ScanConfig.all_scans()
+        self.verbose = verbose
         
         # Set output directory based on testing mode
         if self.testing_mode:
@@ -57,7 +59,8 @@ class Inspector(InspectorInterface):
             current_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Go up to project root
             self.output_dir = os.path.join(current_dir, "mantis_test_output")
             os.makedirs(self.output_dir, exist_ok=True)
-            print(f"🧪 Testing mode: Images will be saved to {self.output_dir}")
+            if self.verbose:
+                print(f"🧪 Testing mode: Images will be saved to {self.output_dir}")
         else:
             # Use temporary directory for production
             self.output_dir = tempfile.mkdtemp(prefix="mantis_")
@@ -65,9 +68,9 @@ class Inspector(InspectorInterface):
         self._initialized = True
     
     @classmethod
-    async def get_instance(cls, testing_mode: bool = False, scan_config: ScanConfig = None) -> 'Inspector':
+    async def get_instance(cls, testing_mode: bool = False, scan_config: ScanConfig = None, verbose: bool = False) -> 'Inspector':
         """Get the singleton instance and ensure browser is ready"""
-        instance = cls(testing_mode=testing_mode, scan_config=scan_config)
+        instance = cls(testing_mode=testing_mode, scan_config=scan_config, verbose=verbose)
         await instance._ensure_browser_ready()
         return instance
     
@@ -179,15 +182,17 @@ class Inspector(InspectorInterface):
     async def _run_accessibility_scan(self, page: Page, url: str, result: PageResult):
         """Run accessibility scan and merge results"""
         try:
-            print(f"🔍 Running accessibility scan for {url}")
-            accessibility_scanner = AccessibilityScanner(self.output_dir)
+            if self.verbose:
+                print(f"🔍 Running accessibility scan for {url}")
+            accessibility_scanner = AccessibilityScanner(self.output_dir, self.verbose)
             
             # Run multi-viewport accessibility scan to catch responsive design issues
             accessibility_result = await accessibility_scanner.scan_all_viewports(page, url)
             accessibility_result.merge_into_page_result(result)
             
         except Exception as e:
-            print(f"❌ Accessibility scan failed: {str(e)}")
+            if self.verbose:
+                print(f"❌ Accessibility scan failed: {str(e)}")
             # Add error bug
             error_bug = Bug(
                 id=str(uuid.uuid4()),
@@ -202,8 +207,9 @@ class Inspector(InspectorInterface):
     async def _run_performance_scan(self, page: Page, url: str, result: PageResult):
         """Run performance scan and merge results"""
         try:
-            print(f"⚡ Running performance scan for {url}")
-            performance_scanner = PerformanceScanner(self.output_dir)
+            if self.verbose:
+                print(f"⚡ Running performance scan for {url}")
+            performance_scanner = PerformanceScanner(self.output_dir, self.verbose)
             
             # Run performance scan across multiple viewports to catch responsive performance issues
             viewports = ["1280x800", "768x1024", "375x667"]  # Desktop, tablet, mobile
@@ -228,7 +234,8 @@ class Inspector(InspectorInterface):
             result.timings.update(timing_data)
             
         except Exception as e:
-            print(f"❌ Performance scan failed: {str(e)}")
+            if self.verbose:
+                print(f"❌ Performance scan failed: {str(e)}")
             # Add error bug
             error_bug = Bug(
                 id=str(uuid.uuid4()),
@@ -243,10 +250,11 @@ class Inspector(InspectorInterface):
     async def _run_ui_scans(self, page: Page, url: str, result: PageResult, config: ScanConfig):
         """Run comprehensive UI scans"""
         try:
-            print(f"🔍 Running comprehensive UI exploration for {url}")
+            if self.verbose:
+                print(f"🔍 Running comprehensive UI exploration for {url}")
             
             # Create structured explorer
-            explorer = StructuredExplorer(self.output_dir, config.model)
+            explorer = StructuredExplorer(self.output_dir, config.model, self.verbose)
             
             # Pass navigation metadata for better action recording
             explorer.navigation_metadata = result.navigation_metadata
@@ -260,7 +268,8 @@ class Inspector(InspectorInterface):
             result.viewport_artifacts.extend(explorer_result.viewport_artifacts)
             
         except Exception as e:
-            print(f"❌ UI scan failed: {str(e)}")
+            if self.verbose:
+                print(f"❌ UI scan failed: {str(e)}")
             # Add error bug
             error_bug = Bug(
                 id=str(uuid.uuid4()),
@@ -307,6 +316,6 @@ class Inspector(InspectorInterface):
 
 
 # Convenience function for getting the singleton
-async def get_inspector(testing_mode: bool = False, scan_config: ScanConfig = None) -> Inspector:
+async def get_inspector(testing_mode: bool = False, scan_config: ScanConfig = None, verbose: bool = False) -> Inspector:
     """Get the singleton Inspector instance"""
-    return await Inspector.get_instance(testing_mode=testing_mode, scan_config=scan_config)
+    return await Inspector.get_instance(testing_mode=testing_mode, scan_config=scan_config, verbose=verbose)

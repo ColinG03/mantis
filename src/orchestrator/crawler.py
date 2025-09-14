@@ -6,7 +6,6 @@ import asyncio
 from collections import deque
 from typing import Set, List, Dict, Optional, Callable
 from datetime import datetime
-import logging
 from urllib.parse import urlparse
 
 from core.types import PageResult, CrawlReport, Bug, Inspector
@@ -18,7 +17,7 @@ class Crawler:
     BFS web crawler that orchestrates page inspection and builds crawl reports.
     """
     
-    def __init__(self, max_depth: int = 3, max_pages: int = 50, max_retries: int = 3):
+    def __init__(self, max_depth: int = 3, max_pages: int = 50, max_retries: int = 3, verbose: bool = False):
         """
         Initialize crawler with limits.
         
@@ -26,11 +25,12 @@ class Crawler:
             max_depth: Maximum crawl depth from seed URL
             max_pages: Maximum total pages to crawl
             max_retries: Maximum retries per failed page
+            verbose: Enable verbose output
         """
         self.max_depth = max_depth
         self.max_pages = max_pages
         self.max_retries = max_retries
-        self.logger = logging.getLogger(__name__)
+        self.verbose = verbose
     
     async def crawl_site(
         self,
@@ -50,7 +50,8 @@ class Crawler:
         Returns:
             Complete crawl report with all findings
         """
-        self.logger.info(f"Starting crawl of {seed_url} (max_depth={self.max_depth}, max_pages={self.max_pages})")
+        if self.verbose:
+            print(f"Starting crawl of {seed_url} (max_depth={self.max_depth}, max_pages={self.max_pages})")
         
         # Initialize crawl state
         seed_host = self._extract_seed_host(seed_url)
@@ -62,7 +63,8 @@ class Crawler:
         crawled_count = 0
         total_bugs_found = 0
         
-        self.logger.info(f"Seed host: {seed_host}")
+        if self.verbose:
+            print(f"Seed host: {seed_host}")
         
         
         # BFS crawling loop
@@ -76,7 +78,8 @@ class Crawler:
             # Skip if normalized version already visited (path parameter deduplication)
             normalized_url = URLUtils.detect_path_parameters(current_url)
             if normalized_url in visited_normalized:
-                self.logger.debug(f"Skipping {current_url} - normalized version already visited")
+                if self.verbose:
+                    print(f"Skipping {current_url} - normalized version already visited")
                 continue
             
             # Mark as visited
@@ -88,7 +91,8 @@ class Crawler:
             if progress_callback:
                 progress_callback(current_url, crawled_count, self.max_pages)
             
-            self.logger.info(f"Crawling page {crawled_count}/{self.max_pages}: {current_url} (depth {depth})")
+            if self.verbose:
+                print(f"Crawling page {crawled_count}/{self.max_pages}: {current_url} (depth {depth})")
             
             # Check content type before inspection to avoid PDF navigation timeouts
             content_type = await URLUtils.check_content_type(current_url)
@@ -102,7 +106,8 @@ class Crawler:
                     "status": 0, # We mark this as 0 because it's not a HTTP status code, rather just a marker that this was skipped. 0 won't break the check of <400 being successful.
                     "content_type": content_type
                 })
-                self.logger.info(f"Skipping non-HTML content: {current_url} (type: {content_type})")
+                if self.verbose:
+                    print(f"Skipping non-HTML content: {current_url} (type: {content_type})")
                 continue
             
             # Inspect the page
@@ -115,7 +120,8 @@ class Crawler:
                     "depth": depth,
                     "status": None  # Failed
                 })
-                self.logger.warning(f"Failed to inspect {current_url} after {self.max_retries} retries")
+                if self.verbose:
+                    print(f"Failed to inspect {current_url} after {self.max_retries} retries")
                 continue
             
             # Record successful page
@@ -130,7 +136,8 @@ class Crawler:
             bugs_on_this_page = len(page_result.findings)
             total_bugs_found += bugs_on_this_page
             
-            self.logger.info(f"Found {bugs_on_this_page} bugs and {len(page_result.outlinks)} outlinks on {current_url}")
+            if self.verbose:
+                print(f"Found {bugs_on_this_page} bugs and {len(page_result.outlinks)} outlinks on {current_url}")
             
             
             # Add outlinks to frontier if within depth limit
@@ -144,16 +151,20 @@ class Crawler:
                     if URLUtils.should_crawl_url(normalized_outlink, seed_host, visited_normalized):
                         frontier.append((normalized_outlink, depth + 1))
                         new_links_added += 1
-                        self.logger.debug(f"Added to frontier: {normalized_outlink} (depth {depth + 1})")
+                        if self.verbose:
+                            print(f"Added to frontier: {normalized_outlink} (depth {depth + 1})")
                     else:
-                        self.logger.debug(f"Skipping outlink: {normalized_outlink} (filtered out)")
+                        if self.verbose:
+                            print(f"Skipping outlink: {normalized_outlink} (filtered out)")
                 
                     
             else:
-                self.logger.debug(f"Skipping outlinks at max depth {depth}")
+                if self.verbose:
+                    print(f"Skipping outlinks at max depth {depth}")
         
         # Build final report
-        self.logger.info(f"Crawl complete. Processed {len(page_results)} pages successfully, {len(pages_info) - len(page_results)} failed")
+        if self.verbose:
+            print(f"Crawl complete. Processed {len(page_results)} pages successfully, {len(pages_info) - len(page_results)} failed")
         
         report = self._build_crawl_report(seed_url, page_results, pages_info)
         
@@ -161,7 +172,8 @@ class Crawler:
         if report.findings:
             report = await self._deduplicate_bugs(report, inspector)
         
-        self.logger.info(f"Final report: {report.pages_total} pages, {report.bugs_total} bugs found")
+        if self.verbose:
+            print(f"Final report: {report.pages_total} pages, {report.bugs_total} bugs found")
         return report
     
     def _extract_seed_host(self, seed_url: str) -> str:
@@ -194,13 +206,16 @@ class Crawler:
         """
         for attempt in range(self.max_retries):
             try:
-                self.logger.debug(f"Inspecting {url} (attempt {attempt + 1}/{self.max_retries})")
+                if self.verbose:
+                    print(f"Inspecting {url} (attempt {attempt + 1}/{self.max_retries})")
                 result = await inspector.inspect_page(url)
                 return result
             except Exception as e:
-                self.logger.warning(f"Attempt {attempt + 1} failed for {url}: {e}")
+                if self.verbose:
+                    print(f"Attempt {attempt + 1} failed for {url}: {e}")
                 if attempt == self.max_retries - 1:
-                    self.logger.error(f"All {self.max_retries} attempts failed for {url}")
+                    if self.verbose:
+                        print(f"All {self.max_retries} attempts failed for {url}")
                     return None
                 # Wait briefly before retry
                 await asyncio.sleep(1)
@@ -260,10 +275,11 @@ class Crawler:
             model = getattr(inspector, 'scan_config', None)
             model_name = model.model if model else 'cohere'
             
-            self.logger.info(f"🔍 Starting bug deduplication using {model_name} model...")
+            if self.verbose:
+                print(f"Starting bug deduplication using {model_name} model...")
             
             # Create deduplicator and process bugs
-            deduplicator = BugDeduplicator(model=model_name)
+            deduplicator = BugDeduplicator(model=model_name, verbose=self.verbose)
             deduplicated_bugs = await deduplicator.deduplicate_bugs(report.findings)
             
             # Update the report
@@ -272,13 +288,16 @@ class Crawler:
             report.bugs_total = len(deduplicated_bugs)
             
             if original_count != len(deduplicated_bugs):
-                self.logger.info(f"✅ Deduplication reduced bugs from {original_count} to {len(deduplicated_bugs)}")
+                if self.verbose:
+                    print(f"✅ Deduplication reduced bugs from {original_count} to {len(deduplicated_bugs)}")
             else:
-                self.logger.info("ℹ️ No duplicate bugs found")
+                if self.verbose:
+                    print("No duplicate bugs found")
             
             return report
             
         except Exception as e:
-            self.logger.error(f"❌ Bug deduplication failed: {str(e)}")
-            self.logger.info("Continuing with original bug list")
+            if self.verbose:
+                print(f"❌ Bug deduplication failed: {str(e)}")
+                print("Continuing with original bug list")
             return report
